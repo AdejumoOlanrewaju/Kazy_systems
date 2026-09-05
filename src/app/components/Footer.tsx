@@ -1,5 +1,6 @@
 import { Button } from '@/components/ui/button'
 import { Laptop } from 'lucide-react'
+import Link from 'next/link'
 import React from 'react'
 
 const Footer = () => {
@@ -32,21 +33,18 @@ const Footer = () => {
                         <div>
                             <h4 className="font-semibold text-lg mb-4">Shop</h4>
                             <ul className="space-y-2 text-gray-400">
-                                <li><a href="#" className="hover:text-white transition-colors">All Laptops</a></li>
-                                <li><a href="#" className="hover:text-white transition-colors">Gaming Laptops</a></li>
-                                <li><a href="#" className="hover:text-white transition-colors">Business Laptops</a></li>
-                                <li><a href="#" className="hover:text-white transition-colors">Accessories</a></li>
-                                <li><a href="#" className="hover:text-white transition-colors">Refurbished</a></li>
+                                <li><Link href="/shop" className="hover:text-white transition-colors">All Laptops</Link></li>
+                                <li><Link href="/shop" className="hover:text-white transition-colors">Gaming Laptops</Link></li>
+                                <li><Link href="/shop" className="hover:text-white transition-colors">Business Laptops</Link></li>
                             </ul>
                         </div>
                         <div>
                             <h4 className="font-semibold text-lg mb-4">Services</h4>
                             <ul className="space-y-2 text-gray-400">
-                                <li><a href="#" className="hover:text-white transition-colors">Laptop Repairs</a></li>
-                                <li><a href="#" className="hover:text-white transition-colors">Upgrades</a></li>
-                                <li><a href="#" className="hover:text-white transition-colors">Data Recovery</a></li>
-                                <li><a href="#" className="hover:text-white transition-colors">Warranty Claims</a></li>
-                                <li><a href="#" className="hover:text-white transition-colors">Tech Support</a></li>
+                                <li><Link href="/repair" className="hover:text-white transition-colors">Laptop Repairs</Link></li>
+                                <li><Link href="/repair" className="hover:text-white transition-colors">Upgrades</Link></li>
+                                <li><Link href="/repair" className="hover:text-white transition-colors">Data Recovery</Link></li>
+                                <li><Link href="/repair" className="hover:text-white transition-colors">Tech Support</Link></li>
                             </ul>
                         </div>
                         <div>

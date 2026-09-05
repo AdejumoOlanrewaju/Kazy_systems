@@ -282,7 +282,7 @@ const page = () => {
                     </div>
 
                     <div className="space-y-4">
-                        <Card className="border-2 hover:border-slate-900 transition-colors cursor-pointer" onClick={() => setOpenFaq(openFaq === 1 ? null : 1)}>
+                        {/* <Card className="border-2 hover:border-slate-900 transition-colors cursor-pointer" onClick={() => setOpenFaq(openFaq === 1 ? null : 1)}>
                             <CardHeader>
                                 <div className="flex justify-between items-center">
                                     <CardTitle className="text-lg">What are your payment methods?</CardTitle>
@@ -308,7 +308,7 @@ const page = () => {
                                     <p className="text-gray-600">Yes! All our laptops come with manufacturer warranty ranging from 1 to 3 years depending on the brand and model.</p>
                                 </CardContent>
                             )}
-                        </Card>
+                        </Card> */}
 
                         <Card className="border-2 hover:border-slate-900 transition-colors cursor-pointer" onClick={() => setOpenFaq(openFaq === 3 ? null : 3)}>
                             <CardHeader>

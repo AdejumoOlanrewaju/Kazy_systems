@@ -26,13 +26,18 @@ import { laptops as laptopData, categories, tags, dealBadges } from "@/lib/data"
 import Link from "next/link";
 import { addProduct, deleteProduct, getProducts, updateProduct } from "@/lib/productDataService";
 import { Button } from "@/components/ui/button";
+import { onAuthStateChanged } from "firebase/auth";
+import { useRouter } from "next/navigation";
+import { doc, getDoc } from "firebase/firestore";
+import { db, auth } from "@/lib/firebase";
+import LoadingOverlay from "../components/LoadingOVerlay";
 
 export default function KazyAdmin() {
     const [laptops, setLaptops] = useState<LaptopType[]>([]);
     const [loading, setLoading] = useState<boolean>(true)
     const [sidebarOpen, setSidebarOpen] = useState(true);
-
-
+    const router = useRouter()
+    const [authLoading, setAuthLoading] = useState<boolean>()
     useEffect(() => {
         const unsubscribe = getProducts((data) => {
             setLaptops(data)
@@ -40,6 +45,30 @@ export default function KazyAdmin() {
         })
         return () => unsubscribe()
     }, [])
+
+    useEffect(() => {
+        const unsubscribe = onAuthStateChanged(auth, async (user) => {
+            if (!user) {
+                router.push("/admin/login");
+                return;
+            }
+
+            // check role or email
+            const docSnap = await getDoc(doc(db, "users", user.uid));
+            const isAdmin =
+                user.email === "admin_kayzee@gmail.com" ||
+                (docSnap.exists() && docSnap.data().role === "admin");
+
+            if (!isAdmin) {
+                router.push("/"); // redirect if not admin
+            } else {
+                setAuthLoading(false);
+
+            }
+        });
+
+        return () => unsubscribe();
+    }, [router]);
 
     const stats = [
         {
@@ -72,9 +101,13 @@ export default function KazyAdmin() {
         },
     ];
 
+    if(authLoading) {
+        return <LoadingOverlay/>
+    }
+
     return (
         <>
-            
+
             <main className="min-h-screen bg-gray-50  flex-1 overflow-y-auto">
                 {/* Header */}
                 <header className="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-40">

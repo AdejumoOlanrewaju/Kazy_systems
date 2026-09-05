@@ -14,15 +14,8 @@ const features = [
     { icon: <Clock className="w-6 h-6" />, text: '24/7 Support', subtext: 'Always here' }
 ];
 
-// const handleWhatsAppOrder = (product) => {
-//     const message = `Hi, I'm interested in ordering:\n\n*${product.name}*\nPrice: $${product.price}\nSpecs: ${product.specs}\n\nPlease provide more information.`;
-//     const whatsappUrl = `https://wa.me/2348000000000?text=${encodeURIComponent(message)}`;
-//     window.open(whatsappUrl, '_blank');
-// };
-
 const Hero = () => {
-    const [searchQuery, setSearchQuery] = useState('');
-    const [searchOpen, setSearchOpen] = useState(false);
+
     return (
         <>
 
