@@ -1,16 +1,31 @@
 "use client"
 import React, { useState } from 'react'
-import { Check, MessageCircle, Shield, Star } from 'lucide-react'
+import { Check, MessageCircle, Shield, ShoppingCart, Star } from 'lucide-react'
 import { useLaptopStore } from '@/store/laptopStore'
+import { useCartStore } from '@/store/cartStore'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import WhatsappBtn from './WhatsappBtn'
 import FetchDataStore from './FetchDataStore'
 import { Skeleton } from '@/components/ui/skeleton'
+import { toast } from 'sonner'
 
 const ProductDetailsUI = ({ paramsName }: { paramsName: string }) => {
     const { laptopStoreData, loadingStore } = useLaptopStore()
     const laptopProduct = laptopStoreData.find(lap => lap.name === paramsName)
     const [mainImage, setMainImage] = useState<string | undefined>(laptopProduct?.images[0])
+    const addItem = useCartStore((state) => state.addItem)
+
+    const handleAddToCart = () => {
+        if (!laptopProduct) return
+        const alreadyInCart = useCartStore.getState().items.some((i) => i.id === laptopProduct.dbID)
+        if (alreadyInCart) {
+            toast.info(`${laptopProduct.name} is already in your cart`)
+            return
+        }
+        addItem(laptopProduct)
+        toast.success(`${laptopProduct.name} added to cart`)
+    }
 
     return (
         <>
@@ -83,10 +98,10 @@ const ProductDetailsUI = ({ paramsName }: { paramsName: string }) => {
 
                             <div className="border-t border-b border-gray-200 py-6">
                                 <div className="flex items-baseline space-x-4">
-                                    <span className="text-5xl font-bold text-slate-900">${laptopProduct?.price}</span>
-                                    <span className="text-2xl text-gray-400 line-through">${laptopProduct?.oldPrice}</span>
+                                    <span className="text-5xl font-bold text-slate-900">₦{laptopProduct?.price.toLocaleString()}</span>
+                                    <span className="text-2xl text-gray-400 line-through">₦{laptopProduct?.oldPrice?.toLocaleString()}</span>
                                     <Badge className="text-green-600 border-green-600 text-lg px-3 py-1">
-                                        Save ${(laptopProduct?.oldPrice)! - (laptopProduct?.price)!}
+                                        Save ₦{((laptopProduct?.oldPrice)! - (laptopProduct?.price)!).toLocaleString()}
                                     </Badge>
                                 </div>
                             </div>
@@ -117,9 +132,18 @@ const ProductDetailsUI = ({ paramsName }: { paramsName: string }) => {
                             </div>
 
                             <div className="space-y-4 pt-4">
+                                <Button
+                                    onClick={handleAddToCart}
+                                    disabled={!laptopProduct?.inStock}
+                                    size="lg"
+                                    className="w-full bg-slate-900 hover:bg-slate-800 text-white font-semibold"
+                                >
+                                    <ShoppingCart className="w-5 h-5 mr-2" />
+                                    Add to Cart
+                                </Button>
                                 <WhatsappBtn product={laptopProduct} />
                                 <p className="text-center text-sm text-gray-600">
-                                    Click to chat with us on WhatsApp and place your order
+                                    Or click to chat with us on WhatsApp and place your order
                                 </p>
                             </div>
                         </div>

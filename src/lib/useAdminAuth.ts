@@ -5,7 +5,7 @@ import { doc, getDoc } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 import { auth, db } from "@/lib/firebase";
 
-const ADMIN_EMAIL = "admin_kayzee@gmail.com";
+const ADMIN_EMAIL = "admin_ademola@gmail.com";
 
 export const isAdminUser = async (user: User): Promise<boolean> => {
   if (user.email === ADMIN_EMAIL) return true;

@@ -5,8 +5,7 @@ import { FormState, LaptopType } from '@/lib/types';
 import { addProduct, deleteProduct, deleteProductImage, getProducts, updateProduct } from '@/lib/productDataService';
 import { Check, ChevronDown, Edit, Filter, Link, Menu, Package, Plus, Search, Tag, Trash2, X } from 'lucide-react';
 import { categories, tags, dealBadges } from '@/lib/data';
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { storage } from '@/lib/firebase';
+import { uploadToCloudinary } from '@/lib/cloudinary';
 import { useLaptopStore } from '@/store/laptopStore';
 import { useSidebarStore } from '@/store/sidebarStore';
 
@@ -50,9 +49,7 @@ const page = () => {
 
     try {
       for (const file of Array.from(files)) {
-        const imageRef = ref(storage, `products/${Date.now()}_${file.name}`);
-        const snapshot = await uploadBytes(imageRef, file);
-        const url = await getDownloadURL(snapshot.ref);
+        const url = await uploadToCloudinary(file);
         uploadedUrls.push(url);
       }
 

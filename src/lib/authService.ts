@@ -5,7 +5,7 @@ export const adminLogin = async (email: string, password: string): Promise<{ use
     const user = userCredential.user;
 
     // Option A: Simple check by email
-    if (user.email === "admin_kayzee@gmail.com") {
+    if (user.email === "admin_ademola@gmail.com") {
         return { user, isAdmin: true };
     }
 

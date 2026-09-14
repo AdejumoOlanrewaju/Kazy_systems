@@ -138,6 +138,18 @@ export default function KazyAdmin() {
                                 <span>Manage Deals</span>
                             </div>
                         </Link>
+                        <Link href="/admin/leads">
+                            <div className="w-full  text-lg flex flex-col items-center justify-center gap-2 bg-black rounded-md px-8 py-14">
+                                <Users className="w-12 h-12" />
+                                <span>View Leads</span>
+                            </div>
+                        </Link>
+                        <Link href="/admin/orders">
+                            <div className="w-full  text-lg flex flex-col items-center justify-center gap-2 bg-black rounded-md px-8 py-14">
+                                <ShoppingBag className="w-12 h-12" />
+                                <span>View Orders</span>
+                            </div>
+                        </Link>
                     </div>
 
                 </div>

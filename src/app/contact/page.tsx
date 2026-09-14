@@ -6,9 +6,41 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Check, ChevronRight, Clock, Mail, MapPin, MessageCircle, Phone } from 'lucide-react'
 import React, { useState } from 'react'
+import { submitLead } from '@/lib/leadService'
 
 const page = () => {
     const [openFaq, setOpenFaq] = useState<number | null>(null);
+    const [contactForm, setContactForm] = useState({
+        firstName: "",
+        lastName: "",
+        email: "",
+        phone: "",
+        subject: "",
+        message: "",
+    })
+    const [submitting, setSubmitting] = useState(false)
+    const [submitted, setSubmitted] = useState(false)
+
+    const handleContactChange = (
+        e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
+    ) => {
+        const { name, value } = e.target
+        setContactForm((prev) => ({ ...prev, [name]: value }))
+    }
+
+    const handleContactSubmit = async (e: React.FormEvent) => {
+        e.preventDefault()
+        setSubmitting(true)
+        try {
+            await submitLead("contact", contactForm)
+            setSubmitted(true)
+            setContactForm({ firstName: "", lastName: "", email: "", phone: "", subject: "", message: "" })
+        } catch (err) {
+            console.error("Failed to save contact lead:", err)
+            alert("Something went wrong. Please try again or reach us via WhatsApp.")
+        }
+        setSubmitting(false)
+    }
     return (
         <div>
             {/* Contact Hero */}
@@ -104,7 +136,7 @@ const page = () => {
                             <h3 className="text-3xl font-bold text-slate-900 mb-6">Send Us a Message</h3>
                             <Card className="border-2 border-slate-200">
                                 <CardContent className="pt-6">
-                                    <form className="space-y-4">
+                                    <form className="space-y-4" onSubmit={handleContactSubmit}>
                                         <div className="grid md:grid-cols-2 gap-4">
                                             <div>
                                                 <label className="block text-sm font-semibold text-slate-900 mb-2">
@@ -112,6 +144,9 @@ const page = () => {
                                                 </label>
                                                 <Input
                                                     type="text"
+                                                    name="firstName"
+                                                    value={contactForm.firstName}
+                                                    onChange={handleContactChange}
                                                     placeholder="John"
                                                     required
                                                     className="w-full"
@@ -123,6 +158,9 @@ const page = () => {
                                                 </label>
                                                 <Input
                                                     type="text"
+                                                    name="lastName"
+                                                    value={contactForm.lastName}
+                                                    onChange={handleContactChange}
                                                     placeholder="Doe"
                                                     required
                                                     className="w-full"
@@ -136,6 +174,9 @@ const page = () => {
                                             </label>
                                             <Input
                                                 type="email"
+                                                name="email"
+                                                value={contactForm.email}
+                                                onChange={handleContactChange}
                                                 placeholder="john.doe@example.com"
                                                 required
                                                 className="w-full"
@@ -148,6 +189,9 @@ const page = () => {
                                             </label>
                                             <Input
                                                 type="tel"
+                                                name="phone"
+                                                value={contactForm.phone}
+                                                onChange={handleContactChange}
                                                 placeholder="+234 XXX XXX XXXX"
                                                 required
                                                 className="w-full"
@@ -159,6 +203,9 @@ const page = () => {
                                                 Subject *
                                             </label>
                                             <select
+                                                name="subject"
+                                                value={contactForm.subject}
+                                                onChange={handleContactChange}
                                                 required
                                                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-slate-900"
                                             >
@@ -177,6 +224,9 @@ const page = () => {
                                                 Your Message *
                                             </label>
                                             <Textarea
+                                                name="message"
+                                                value={contactForm.message}
+                                                onChange={handleContactChange}
                                                 placeholder="Tell us how we can help you..."
                                                 required
                                                 rows={5}
@@ -187,9 +237,10 @@ const page = () => {
                                         <Button
                                             type="submit"
                                             size="lg"
-                                            className="w-full bg-slate-900 hover:bg-slate-800 text-white font-semibold text-lg"
+                                            disabled={submitting}
+                                            className="w-full bg-slate-900 hover:bg-slate-800 text-white font-semibold text-lg disabled:opacity-60"
                                         >
-                                            Send Message
+                                            {submitting ? "Sending..." : submitted ? "Sent ✓" : "Send Message"}
                                         </Button>
                                     </form>
                                 </CardContent>
@@ -282,34 +333,6 @@ const page = () => {
                     </div>
 
                     <div className="space-y-4">
-                        {/* <Card className="border-2 hover:border-slate-900 transition-colors cursor-pointer" onClick={() => setOpenFaq(openFaq === 1 ? null : 1)}>
-                            <CardHeader>
-                                <div className="flex justify-between items-center">
-                                    <CardTitle className="text-lg">What are your payment methods?</CardTitle>
-                                    <ChevronRight className={`w-5 h-5 transition-transform ${openFaq === 1 ? 'rotate-90' : ''}`} />
-                                </div>
-                            </CardHeader>
-                            {openFaq === 1 && (
-                                <CardContent>
-                                    <p className="text-gray-600">We accept bank transfers, card payments, and cash on delivery. Payment details will be shared via WhatsApp when you place your order.</p>
-                                </CardContent>
-                            )}
-                        </Card>
-
-                        <Card className="border-2 hover:border-slate-900 transition-colors cursor-pointer" onClick={() => setOpenFaq(openFaq === 2 ? null : 2)}>
-                            <CardHeader>
-                                <div className="flex justify-between items-center">
-                                    <CardTitle className="text-lg">Do you offer warranty on laptops?</CardTitle>
-                                    <ChevronRight className={`w-5 h-5 transition-transform ${openFaq === 2 ? 'rotate-90' : ''}`} />
-                                </div>
-                            </CardHeader>
-                            {openFaq === 2 && (
-                                <CardContent>
-                                    <p className="text-gray-600">Yes! All our laptops come with manufacturer warranty ranging from 1 to 3 years depending on the brand and model.</p>
-                                </CardContent>
-                            )}
-                        </Card> */}
-
                         <Card className="border-2 hover:border-slate-900 transition-colors cursor-pointer" onClick={() => setOpenFaq(openFaq === 3 ? null : 3)}>
                             <CardHeader>
                                 <div className="flex justify-between items-center">

@@ -2,11 +2,14 @@
 import { Button } from '@/components/ui/button';
 import { Heart, Laptop, Menu, Search, ShoppingCart, X } from 'lucide-react'
 import Link from 'next/link';
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
+import { useCartStore } from '@/store/cartStore';
 
 const Navbar = () => {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-    const [cart, setCart] = useState(0);
+    const totalItems = useCartStore((state) => state.totalItems());
+    const [mounted, setMounted] = useState(false);
+    useEffect(() => setMounted(true), []);
 
     return (
         <>
@@ -24,7 +27,6 @@ const Navbar = () => {
                                     <span className="text-sm font-bold text-slate-900 block">Computer Networks</span>
 
                                 </div>
-                                {/* <p className="text-xs text-gray-500">Laptops & Repairs</p> */}
                             </div>
                         </Link>
 
@@ -35,24 +37,17 @@ const Navbar = () => {
                             <Link href="/contact" className="text-gray-700 hover:text-slate-900 font-medium transition-colors">Contact</Link>
                         </div>
 
-                        <div className="flex items-center space-x-4 md:hidden">
-                            {/* <Button variant="ghost" size="icon" className="hidden md:flex">
-                                <Search className="w-5 h-5" />
-                            </Button>
-                            <Button variant="ghost" size="icon" className="hidden md:flex">
-                                <Heart className="w-5 h-5" />
-                            </Button> */}
-                            {/* <Button variant="ghost" size="icon" className="relative">
-                                <ShoppingCart className="w-5 h-5" />
-                                {cart > 0 && (
-                                    <span className="absolute -top-1 -right-1 bg-red-600 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                                        {cart}
-                                    </span>
-                                )}
-                            </Button> */}
-                            {/* <Button className="hidden md:inline-flex bg-slate-900 hover:bg-slate-800 text-white">
-                                Sign In
-                            </Button> */}
+                        <div className="flex items-center space-x-4">
+                            <Link href="/cart">
+                                <Button variant="ghost" size="icon" className="relative">
+                                    <ShoppingCart className="w-5 h-5" />
+                                    {mounted && totalItems > 0 && (
+                                        <span className="absolute -top-1 -right-1 bg-red-600 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                                            {totalItems}
+                                        </span>
+                                    )}
+                                </Button>
+                            </Link>
                             <button
                                 className="md:hidden p-2"
                                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
@@ -64,10 +59,10 @@ const Navbar = () => {
 
                     {mobileMenuOpen && (
                         <div className="md:hidden py-4 space-y-2 border-t">
-                            <a href="#shop" className="block py-2 text-gray-700 hover:text-slate-900">Shop</a>
-                            <a href="#repairs" className="block py-2 text-gray-700 hover:text-slate-900">Repair PC</a>
-                            <a href="#deals" className="block py-2 text-gray-700 hover:text-slate-900">Deals</a>
-                            <a href="#contact" className="block py-2 text-gray-700 hover:text-slate-900">Contact</a>
+                            <Link href="/shop" className="block py-2 text-gray-700 hover:text-slate-900">Shop</Link>
+                            <Link href="/repair" className="block py-2 text-gray-700 hover:text-slate-900">Repair PC</Link>
+                            <Link href="/deals" className="block py-2 text-gray-700 hover:text-slate-900">Deals</Link>
+                            <Link href="/contact" className="block py-2 text-gray-700 hover:text-slate-900">Contact</Link>
                         </div>
                     )}
                 </div>

@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Award, Check, MessageCircle, Shield, Wrench, Zap } from "lucide-react"
+import { submitLead } from "@/lib/leadService"
 
 const Page = () => {
   const [repairForm, setRepairForm] = useState({
@@ -16,6 +17,7 @@ const Page = () => {
     issue: "",
     description: "",
   })
+  const [submitting, setSubmitting] = useState(false)
 
   const handleRepairFormChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
@@ -24,7 +26,7 @@ const Page = () => {
     setRepairForm((prev) => ({ ...prev, [name]: value }))
   }
 
-  const handleRepairSubmit = (e: FormEvent) => {
+  const handleRepairSubmit = async (e: FormEvent) => {
     e.preventDefault()
 
     // Validate (extra safety)
@@ -32,6 +34,16 @@ const Page = () => {
       alert("Please fill in all required fields.")
       return
     }
+
+    setSubmitting(true)
+    try {
+      // Save first — this is the permanent record, independent of WhatsApp.
+      await submitLead("repair", repairForm)
+    } catch (err) {
+      console.error("Failed to save repair lead:", err)
+      // Don't block the user — still let them reach us via WhatsApp.
+    }
+    setSubmitting(false)
 
     const message = `*Laptop Repair Request*%0A
 Name: ${repairForm.name}%0A
@@ -205,10 +217,11 @@ Description: ${repairForm.description}`
                 <Button
                   type="submit"
                   size="lg"
-                  className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold"
+                  disabled={submitting}
+                  className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold disabled:opacity-60"
                 >
                   <MessageCircle className="w-5 h-5 mr-2" />
-                  Submit via WhatsApp
+                  {submitting ? "Submitting..." : "Submit via WhatsApp"}
                 </Button>
 
                 <p className="text-xs text-center text-gray-600">

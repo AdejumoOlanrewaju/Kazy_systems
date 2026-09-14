@@ -1,11 +1,9 @@
 // lib/products.ts
 import { db } from "@/lib/firebase";
-import { collection, addDoc, getDocs, updateDoc, deleteDoc, doc, onSnapshot, arrayRemove } from "firebase/firestore";
+import { collection, addDoc, getDocs, updateDoc, deleteDoc, doc, onSnapshot, arrayRemove, getDoc } from "firebase/firestore";
 import { LaptopType } from "./types";
-import { deleteObject, ref } from "firebase/storage";
-import { storage } from "@/lib/firebase";
+import { getPublicIdFromUrl } from "@/lib/cloudinary";
 
-// Add new product
 export const addProduct = async (data: LaptopType) => {
     try {
         const docRef = await addDoc(collection(db, "products"), data);
@@ -15,21 +13,17 @@ export const addProduct = async (data: LaptopType) => {
     }
 };
 
-// Get all products
 export const getProducts = (callback: (products: any[]) => void) => {
     const unsubscribe = onSnapshot(collection(db, "products"), (snapshot) => {
-
         const products = snapshot.docs.map((doc) => ({
             dbID: doc.id,
             ...doc.data(),
         }));
         callback(products);
     });
-    // Return unsubscribe function so you can stop listening later
     return unsubscribe;
 };
 
-// Update product
 export const updateProduct = async (id: string, data: LaptopType) => {
     try {
         const docRef = doc(db, 'products', id);
@@ -40,7 +34,6 @@ export const updateProduct = async (id: string, data: LaptopType) => {
     }
 };
 
-// Delete product
 export const deleteProduct = async (id: string) => {
     const docRef = doc(db, "products", id);
     await deleteDoc(docRef);
@@ -48,14 +41,15 @@ export const deleteProduct = async (id: string) => {
 
 export const deleteProductImage = async (productId: string, imageUrl: string) => {
     try {
-        // 1️⃣ Create a storage reference from the image URL
-        const imageRef = ref(storage, imageUrl);
+        const publicId = getPublicIdFromUrl(imageUrl);
+        if (publicId) {
+            await fetch("/api/cloudinary/delete", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ publicId }),
+            });
+        }
 
-        // 2️⃣ Delete the image file from Firebase Storage
-        await deleteObject(imageRef);
-        console.log("Image deleted from storage");
-
-        // 3️⃣ Remove the image URL from Firestore document
         const productRef = doc(db, "products", productId);
         await updateDoc(productRef, {
             images: arrayRemove(imageUrl),
@@ -65,4 +59,28 @@ export const deleteProductImage = async (productId: string, imageUrl: string) =>
     } catch (error) {
         console.error("Error deleting image:", error);
     }
+};
+
+// Checks whether a set of products is still marked inStock — used right
+// before payment starts, to catch a laptop someone else already bought.
+export const checkProductsInStock = async (
+    productIds: string[]
+): Promise<{ allInStock: boolean; soldOutIds: string[] }> => {
+    const soldOutIds: string[] = [];
+
+    for (const id of productIds) {
+        const snap = await getDoc(doc(db, "products", id));
+        if (!snap.exists() || snap.data().inStock === false) {
+            soldOutIds.push(id);
+        }
+    }
+
+    return { allInStock: soldOutIds.length === 0, soldOutIds };
+};
+
+// Marks each purchased laptop as sold out. Called only after payment is verified.
+export const markProductsSoldOut = async (productIds: string[]) => {
+    await Promise.all(
+        productIds.map((id) => updateDoc(doc(db, "products", id), { inStock: false }))
+    );
 };
