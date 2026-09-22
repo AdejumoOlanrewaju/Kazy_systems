@@ -7,6 +7,7 @@ import Link from 'next/link'
 import React from 'react'
 import { useCartStore } from '@/store/cartStore'
 import { toast } from 'sonner'
+import { buildProductUrl } from '@/lib/slug'
 
 const ProductCard = ({ laptop }: { laptop: any }) => {
     const slug = laptop.name.replace("/\s+/g", "-")
@@ -32,12 +33,9 @@ const ProductCard = ({ laptop }: { laptop: any }) => {
                         className="w-full h-56 object-cover group-hover:scale-110 transition-transform duration-500"
                     />
 
-                    {laptop.inStock && (
+                    {laptop.stockQuantity > 0 && (
                         <div className="absolute bottom-3 gap-1 left-3 flex items-center bg-green-500 text-white py-1 px-2 rounded-xl">
-                            <Badge className="w-4 h-4 text-white border-0">
-
-                            </Badge>
-                            <span>In Stock</span>
+                            <span>{laptop.stockQuantity} in stock</span>
                         </div>
                     )}
 
@@ -62,12 +60,12 @@ const ProductCard = ({ laptop }: { laptop: any }) => {
                     <div className="flex items-baseline space-x-2 w-full">
                         <span className="text-2xl font-bold text-slate-900">₦{laptop.price.toLocaleString()}</span>
                         <span className="text-sm text-gray-400 line-through">₦{laptop.oldPrice?.toLocaleString()}</span>
-                        <Badge variant={'outline'} className="ml-auto text-green-600 border-green-600 text-xs">
+                        {/* <Badge variant={'outline'} className="ml-auto text-green-600 border-green-600 text-xs">
                             Save ₦{(laptop.oldPrice - laptop.price).toLocaleString()}
-                        </Badge>
+                        </Badge> */}
                     </div>
                     <div className="flex gap-2 w-full">
-                        <Link href={`/product/${laptop.name.replace(/\s+/g, "-")}`} className="flex-1">
+                        <Link href={buildProductUrl(laptop.name, laptop.dbID)} className="flex-1">
                             <Button
                                 className="w-full bg-slate-900 hover:bg-slate-800 text-white font-semibold"
                             >
@@ -77,7 +75,7 @@ const ProductCard = ({ laptop }: { laptop: any }) => {
                         </Link>
                         <Button
                             onClick={handleAddToCart}
-                            disabled={!laptop.inStock}
+                            disabled={!laptop.stockQuantity || laptop.stockQuantity < 1}
                             variant="outline"
                             className="border-slate-900"
                             title="Add to cart"

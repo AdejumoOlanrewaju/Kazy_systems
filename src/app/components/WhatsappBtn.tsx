@@ -6,7 +6,7 @@ import React from 'react'
 const WhatsappBtn = (prop: any) => {
     const handleWhatsAppOrder = (product: any) => {
         const {name, price, specs} = product.product
-        const message = `Hi, I'm interested in ordering:\n\n*${name}*\nPrice: $${price}\nSpecs: ${specs}\n\nPlease provide more information.`;
+        const message = `Hi, I'm interested in ordering:\n\n*${name}*\nPrice: ₦${price}\nSpecs: ${specs}\n\nPlease provide more information.`;
         const whatsappUrl = `https://wa.me/2349165210359?text=${encodeURIComponent(message)}`;
         window.open(whatsappUrl, '_blank');
         

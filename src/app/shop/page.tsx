@@ -38,14 +38,26 @@ const page = () => {
         }
 
         // Filter by price range
-        if (priceRange === 'under500') {
-            filtered = filtered.filter(laptop => laptop.price < 500);
-        } else if (priceRange === '500-1000') {
-            filtered = filtered.filter(laptop => laptop.price >= 500 && laptop.price < 1000);
-        } else if (priceRange === '1000-2000') {
-            filtered = filtered.filter(laptop => laptop.price >= 1000 && laptop.price < 2000);
-        } else if (priceRange === 'over2000') {
-            filtered = filtered.filter(laptop => laptop.price >= 2000);
+        if (priceRange === 'under300') {
+            filtered = filtered.filter(laptop => laptop.price < 300000);
+
+        } else if (priceRange === '300-500') {
+            filtered = filtered.filter(
+                laptop => laptop.price >= 300000 && laptop.price < 500000
+            );
+
+        } else if (priceRange === '500-750') {
+            filtered = filtered.filter(
+                laptop => laptop.price >= 500000 && laptop.price < 750000
+            );
+
+        } else if (priceRange === '750-1000') {
+            filtered = filtered.filter(
+                laptop => laptop.price >= 750000 && laptop.price < 1000000
+            );
+
+        } else if (priceRange === 'over1000') {
+            filtered = filtered.filter(laptop => laptop.price >= 1000000);
         }
 
         // Sort
@@ -88,7 +100,7 @@ const page = () => {
                     <div className="grid lg:grid-cols-4 gap-8">
                         {/* Sidebar Filters */}
                         <div className="lg:col-span-1">
-                            <div className="sticky top-24 space-y-6">
+                            <div className="sticky top-24 space-y-6 h-screen overflow-y-scroll">
                                 {/* Search Box - Mobile/Tablet */}
                                 <Card className="border-2 ">
                                     <CardHeader>
@@ -185,40 +197,53 @@ const page = () => {
                                             All Prices
                                         </button>
                                         <button
-                                            onClick={() => setPriceRange('under500')}
-                                            className={`w-full text-left px-4 py-2 rounded-lg transition-colors ${priceRange === 'under500'
+                                            onClick={() => setPriceRange('under300')}
+                                            className={`w-full text-left px-4 py-2 rounded-lg transition-colors ${priceRange === 'under300'
                                                 ? 'bg-slate-900 text-white'
                                                 : 'bg-gray-100 hover:bg-gray-200'
                                                 }`}
                                         >
-                                            Under $500
+                                            Under ₦300,000
                                         </button>
+
                                         <button
-                                            onClick={() => setPriceRange('500-1000')}
-                                            className={`w-full text-left px-4 py-2 rounded-lg transition-colors ${priceRange === '500-1000'
+                                            onClick={() => setPriceRange('300-500')}
+                                            className={`w-full text-left px-4 py-2 rounded-lg transition-colors ${priceRange === '300-500'
                                                 ? 'bg-slate-900 text-white'
                                                 : 'bg-gray-100 hover:bg-gray-200'
                                                 }`}
                                         >
-                                            $500 - $1000
+                                            ₦300,000 - ₦500,000
                                         </button>
+
                                         <button
-                                            onClick={() => setPriceRange('1000-2000')}
-                                            className={`w-full text-left px-4 py-2 rounded-lg transition-colors ${priceRange === '1000-2000'
+                                            onClick={() => setPriceRange('500-750')}
+                                            className={`w-full text-left px-4 py-2 rounded-lg transition-colors ${priceRange === '500-750'
                                                 ? 'bg-slate-900 text-white'
                                                 : 'bg-gray-100 hover:bg-gray-200'
                                                 }`}
                                         >
-                                            $1000 - $2000
+                                            ₦500,000 - ₦750,000
                                         </button>
+
                                         <button
-                                            onClick={() => setPriceRange('over2000')}
-                                            className={`w-full text-left px-4 py-2 rounded-lg transition-colors ${priceRange === 'over2000'
+                                            onClick={() => setPriceRange('750-1000')}
+                                            className={`w-full text-left px-4 py-2 rounded-lg transition-colors ${priceRange === '750-1000'
                                                 ? 'bg-slate-900 text-white'
                                                 : 'bg-gray-100 hover:bg-gray-200'
                                                 }`}
                                         >
-                                            Over $2000
+                                            ₦750,000 - ₦1,000,000
+                                        </button>
+
+                                        <button
+                                            onClick={() => setPriceRange('over1000')}
+                                            className={`w-full text-left px-4 py-2 rounded-lg transition-colors ${priceRange === 'over1000'
+                                                ? 'bg-slate-900 text-white'
+                                                : 'bg-gray-100 hover:bg-gray-200'
+                                                }`}
+                                        >
+                                            Over ₦1,000,000
                                         </button>
                                     </CardContent>
                                 </Card>
@@ -305,32 +330,32 @@ const page = () => {
 
                             {/* Products Grid */}
                             {
-                                loadingStore ?( <LoadingProduct/>) : displayLaptops.length > 0 ? (
-                                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                                    {displayLaptops.map((laptop) => (
-                                        <ProductCard laptop={laptop} key={laptop.dbID} />
-                                    ))}
-                                </div>
-                            ) : (
-                                <div className="text-center py-16">
-                                    <div className="bg-gray-100 rounded-full w-24 h-24 flex items-center justify-center mx-auto mb-4">
-                                        <Laptop className="w-12 h-12 text-gray-400" />
+                                loadingStore ? (<LoadingProduct />) : displayLaptops.length > 0 ? (
+                                    <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                                        {displayLaptops.map((laptop) => (
+                                            <ProductCard laptop={laptop} key={laptop.dbID} />
+                                        ))}
                                     </div>
-                                    <h3 className="text-2xl font-bold text-slate-900 mb-2">No Products Found</h3>
-                                    <p className="text-gray-600 mb-6">Try adjusting your filters to see more results</p>
-                                    <Button
-                                        onClick={() => {
-                                            setSelectedCategory('all');
-                                            setPriceRange('all');
-                                        }}
-                                        className="bg-slate-900 hover:bg-slate-800 text-white"
-                                    >
-                                        Clear All Filters
-                                    </Button>
-                                </div>
-                            )
+                                ) : (
+                                    <div className="text-center py-16">
+                                        <div className="bg-gray-100 rounded-full w-24 h-24 flex items-center justify-center mx-auto mb-4">
+                                            <Laptop className="w-12 h-12 text-gray-400" />
+                                        </div>
+                                        <h3 className="text-2xl font-bold text-slate-900 mb-2">No Products Found</h3>
+                                        <p className="text-gray-600 mb-6">Try adjusting your filters to see more results</p>
+                                        <Button
+                                            onClick={() => {
+                                                setSelectedCategory('all');
+                                                setPriceRange('all');
+                                            }}
+                                            className="bg-slate-900 hover:bg-slate-800 text-white"
+                                        >
+                                            Clear All Filters
+                                        </Button>
+                                    </div>
+                                )
                             }
-                            
+
                         </div>
                     </div>
                 </div>

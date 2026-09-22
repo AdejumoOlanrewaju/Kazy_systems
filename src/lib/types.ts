@@ -1,25 +1,25 @@
 export type LaptopType = {
-    dbID? : string;
+    dbID : string;
     id: string;
     name: string;
     category: string;
     price: number;
-    oldPrice: number | undefined;
+    oldPrice: number;
     images: string[];
     specs: string;
     rating: number;
     reviews: number;
-    inStock: boolean;
+    stockQuantity: number;
     tag: string;
     description: string;
     features: string[];
     warranty: string;
     isDeal?: boolean;
+    dealEndsAt?: number | null;
     dealBadge?: string;
     discount?: number;
 }
 
-// ✅ Type for Form Data
 export interface FormState {
   id? : string | number;
   name: string;
@@ -30,12 +30,13 @@ export interface FormState {
   specs: string;
   rating: string;
   reviews: string;
-  inStock: boolean;
+  stockQuantity: string;
   tag: string;
   description: string;
   features: string;
   warranty: string;
   isDeal: boolean;
+  dealEndsAt: string;
   dealBadge: string;
   discount: string;
 }

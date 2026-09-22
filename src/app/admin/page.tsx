@@ -26,11 +26,13 @@ import { laptops as laptopData, categories, tags, dealBadges } from "@/lib/data"
 import Link from "next/link";
 import { addProduct, deleteProduct, getProducts, updateProduct } from "@/lib/productDataService";
 import { Button } from "@/components/ui/button";
+import { useSidebarStore } from "@/store/sidebarStore";
 
 export default function KazyAdmin() {
     const [laptops, setLaptops] = useState<LaptopType[]>([]);
     const [loading, setLoading] = useState<boolean>(true)
     const [sidebarOpen, setSidebarOpen] = useState(true);
+    const { toggleSidebar, isOpen } = useSidebarStore()
     useEffect(() => {
         const unsubscribe = getProducts((data) => {
             setLaptops(data)
@@ -49,7 +51,7 @@ export default function KazyAdmin() {
         },
         {
             label: "In Stock",
-            value: laptops.filter((l) => l.inStock).length,
+            value: laptops.filter((l) => l.stockQuantity > 0).length,
             icon: Check,
             gradient: "from-blue-400 to-blue-600",
             change: "+8%",
@@ -63,7 +65,7 @@ export default function KazyAdmin() {
         },
         {
             label: "Total Value",
-            value: `$${laptops.reduce((sum, l) => sum + l.price, 0).toLocaleString()}`,
+            value: `₦${laptops.reduce((sum, l) => sum + l.price, 0).toLocaleString()}`,
             icon: DollarSign,
             gradient: "from-orange-400 to-orange-600",
             change: "+15%",
@@ -81,7 +83,7 @@ export default function KazyAdmin() {
                             <div className="flex items-center gap-6">
                                 <div className="flex items-center gap-1">
                                     <button
-                                        onClick={() => setSidebarOpen(!sidebarOpen)}
+                                        onClick={() => toggleSidebar()}
                                         className="p-2 hover:bg-neutral-800 rounded-xl transition-colors text-neutral-700 hover:text-white"
                                     >
                                         <Menu size={20} />
@@ -96,9 +98,9 @@ export default function KazyAdmin() {
                     </div>
                 </header>
 
-                <div className="px-6">
+                <div className="p-6">
                     {/* Stats Grid */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8 mt-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
                         {stats.map((stat, idx) => (
                             <div
                                 key={idx}
@@ -144,7 +146,7 @@ export default function KazyAdmin() {
                                 <span>View Leads</span>
                             </div>
                         </Link>
-                        <Link href="/admin/orders">
+                        <Link href="/admin/order">
                             <div className="w-full  text-lg flex flex-col items-center justify-center gap-2 bg-black rounded-md px-8 py-14">
                                 <ShoppingBag className="w-12 h-12" />
                                 <span>View Orders</span>

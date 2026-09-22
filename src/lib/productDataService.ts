@@ -1,9 +1,8 @@
-// lib/products.ts
 import { db } from "@/lib/firebase";
-import { collection, addDoc, getDocs, updateDoc, deleteDoc, doc, onSnapshot, arrayRemove, getDoc } from "firebase/firestore";
+import { collection, addDoc, getDocs, updateDoc, deleteDoc, doc, onSnapshot, arrayRemove, getDoc, increment } from "firebase/firestore";
 import { LaptopType } from "./types";
 import { getPublicIdFromUrl } from "@/lib/cloudinary";
-
+import { laptops } from "./data";
 export const addProduct = async (data: LaptopType) => {
     try {
         const docRef = await addDoc(collection(db, "products"), data);
@@ -19,7 +18,8 @@ export const getProducts = (callback: (products: any[]) => void) => {
             dbID: doc.id,
             ...doc.data(),
         }));
-        callback(products);
+        const productsArr = [...products]
+        callback(productsArr);
     });
     return unsubscribe;
 };
@@ -61,26 +61,33 @@ export const deleteProductImage = async (productId: string, imageUrl: string) =>
     }
 };
 
-// Checks whether a set of products is still marked inStock — used right
-// before payment starts, to catch a laptop someone else already bought.
+// Checks that requested quantities don't exceed what's actually left in stock —
+// used right before payment starts, to catch stock someone else already bought.
 export const checkProductsInStock = async (
-    productIds: string[]
+    items: { id: string; quantity: number }[]
 ): Promise<{ allInStock: boolean; soldOutIds: string[] }> => {
     const soldOutIds: string[] = [];
 
-    for (const id of productIds) {
-        const snap = await getDoc(doc(db, "products", id));
-        if (!snap.exists() || snap.data().inStock === false) {
-            soldOutIds.push(id);
+    for (const item of items) {
+        const snap = await getDoc(doc(db, "products", item.id));
+        const available = snap.exists() ? (snap.data().stockQuantity ?? 0) : 0;
+        if (available < item.quantity) {
+            soldOutIds.push(item.id);
         }
     }
 
     return { allInStock: soldOutIds.length === 0, soldOutIds };
 };
 
-// Marks each purchased laptop as sold out. Called only after payment is verified.
-export const markProductsSoldOut = async (productIds: string[]) => {
+// Deducts purchased quantities from stock. Called only after payment is verified.
+// Uses Firestore's atomic `increment` (negative) so concurrent orders can't
+// both read the same stale count and oversell.
+export const decrementStock = async (items: { id: string; quantity: number }[]) => {
     await Promise.all(
-        productIds.map((id) => updateDoc(doc(db, "products", id), { inStock: false }))
+        items.map((item) =>
+            updateDoc(doc(db, "products", item.id), {
+                stockQuantity: increment(-item.quantity),
+            })
+        )
     );
 };

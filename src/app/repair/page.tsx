@@ -92,7 +92,7 @@ Description: ${repairForm.description}`
                     icon: <Wrench className="w-6 h-6 text-white" />,
                     title: "Screen Replacement",
                     desc: "Professional LCD/LED screen repair",
-                    price: "From $99 • 2-4 hours",
+                    // price: "From $99 • 2-4 hours",
                   },
                   {
                     icon: <Zap className="w-6 h-6 text-white" />,
@@ -104,13 +104,13 @@ Description: ${repairForm.description}`
                     icon: <Shield className="w-6 h-6 text-white" />,
                     title: "Virus Removal",
                     desc: "Complete system cleanup and security",
-                    price: "From $59 • 3-5 hours",
+                    // price: "From $59 • 3-5 hours",
                   },
                   {
                     icon: <Award className="w-6 h-6 text-white" />,
                     title: "Hardware Repair",
                     desc: "Motherboard, battery repairs",
-                    price: "From $149 • 1-2 days",
+                    // price: "From $149 • 1-2 days",
                   },
                 ].map((service, i) => (
                   <div key={i} className="flex items-start space-x-4 p-4 bg-gray-50 rounded-lg">
@@ -129,8 +129,8 @@ Description: ${repairForm.description}`
               <h3 className="text-xl font-bold mb-3">Why Choose Us?</h3>
               <ul className="space-y-3">
                 {[
-                  "Free diagnostics included",
-                  "90-day warranty on all repairs",
+                  // "Free diagnostics included",
+                  // "90-day warranty on all repairs",
                   "Certified technicians only",
                   "Fast turnaround time",
                   "Genuine parts only",

@@ -60,14 +60,14 @@ const Footer = () => {
                                 </li>
                                 <li className="flex items-start space-x-2">
                                     <svg className="w-5 h-5 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                                    <span>123 Tech Street, Ikeja<br />Lagos, Nigeria</span>
+                                    <span>Computer Village, Ikeja<br />Lagos, Nigeria</span>
                                 </li>
                             </ul>
                         </div>
                     </div>
                     <div className="border-t border-slate-800 pt-8">
                         <div className="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
-                            <p className="text-gray-400 text-sm">&copy; 2025 TechMart. All rights reserved.</p>
+                            <p className="text-gray-400 text-sm">&copy; 2025 Telextech. All rights reserved.</p>
                             <div className="flex space-x-6 text-sm text-gray-400">
                                 <a href="#" className="hover:text-white transition-colors">Privacy Policy</a>
                                 <a href="#" className="hover:text-white transition-colors">Terms of Service</a>

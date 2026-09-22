@@ -27,12 +27,13 @@ const page = () => {
     specs: "",
     rating: "",
     reviews: "",
-    inStock: true,
+    stockQuantity: "1",
     tag: "",
     description: "",
     features: "",
     warranty: "",
     isDeal: false,
+    dealEndsAt: "",
     dealBadge: "",
     discount: "",
   });
@@ -131,15 +132,16 @@ const page = () => {
 
     const laptopData: LaptopType = {
       id: editingLaptop ? editingLaptop.id : '',
+      dbID: editingLaptop ? editingLaptop.dbID : '',
       name: formData.name,
       category: formData.category,
       price: parseFloat(formData.price),
-      oldPrice: formData.oldPrice ? parseFloat(formData.oldPrice) : undefined,
+      oldPrice: parseFloat(formData.oldPrice),
       images: formData.images,
       specs: formData.specs,
       rating: parseFloat(formData.rating),
       reviews: parseInt(formData.reviews),
-      inStock: formData.inStock,
+      stockQuantity: parseInt(formData.stockQuantity) || 0,
       tag: formData.tag,
       description: formData.description,
       features: formData.features
@@ -147,6 +149,7 @@ const page = () => {
         : [],
       warranty: formData.warranty,
       isDeal: formData.isDeal,
+      dealEndsAt: formData.isDeal && formData.dealEndsAt ? new Date(formData.dealEndsAt).getTime() : null,
       dealBadge: formData.dealBadge,
       discount: formData.discount ? parseInt(formData.discount) : 0,
     };
@@ -184,12 +187,13 @@ const page = () => {
       specs: "",
       rating: "",
       reviews: "",
-      inStock: true,
+      stockQuantity: "1",
       tag: "",
       description: "",
       features: "",
       warranty: "",
       isDeal: false,
+      dealEndsAt: "",
       dealBadge: "",
       discount: "",
     });
@@ -209,12 +213,15 @@ const page = () => {
       specs: laptop.specs,
       rating: laptop.rating.toString(),
       reviews: laptop.reviews.toString(),
-      inStock: laptop.inStock,
+      stockQuantity: laptop.stockQuantity?.toString() || "0",
       tag: laptop.tag || "",
       description: laptop.description || "",
       features: laptop.features?.join("\n") || "",
       warranty: laptop.warranty || "",
       isDeal: laptop.isDeal || false,
+      dealEndsAt: laptop.dealEndsAt
+        ? new Date(laptop.dealEndsAt).toISOString().slice(0, 16)
+        : "",
       dealBadge: laptop.dealBadge || "",
       discount: laptop.discount?.toString() || "",
     });
@@ -341,12 +348,12 @@ const page = () => {
                       {laptop.tag}
                     </span>
                     <div
-                      className={`absolute bottom-4 left-4 px-3 py-1.5 rounded-lg text-xs font-semibold ${laptop.inStock
+                      className={`absolute bottom-4 left-4 px-3 py-1.5 rounded-lg text-xs font-semibold ${laptop.stockQuantity > 0
                         ? "bg-emerald-100 text-emerald-700 border border-emerald-200"
                         : "bg-red-100 text-red-700 border border-red-200"
                         }`}
                     >
-                      {laptop.inStock ? "In Stock" : "Out of Stock"}
+                      {laptop.stockQuantity > 0 ? `${laptop.stockQuantity} in stock` : "Out of Stock"}
                     </div>
                   </div>
 
@@ -361,16 +368,18 @@ const page = () => {
 
                     <div className="flex items-baseline gap-2 mb-4">
                       <span className="text-2xl font-bold text-gray-900">
-                        ${laptop.price}
+                        ₦{laptop.price.toLocaleString()}
                       </span>
                       {laptop.oldPrice && (
                         <>
                           <span className="text-sm text-gray-400 line-through">
-                            ${laptop.oldPrice}
+                            ₦{laptop.oldPrice.toLocaleString()}
                           </span>
-                          <span className="text-xs font-bold text-green-700 bg-green-100 px-2 py-1 rounded-md border border-green-200">
-                            -{laptop.discount}%
-                          </span>
+                          {laptop.discount! > 0 && (
+                            <span className="text-xs font-bold text-green-700 bg-green-100 px-2 py-1 rounded-md border border-green-200">
+                              -{laptop.discount}%
+                            </span>
+                          )}
                         </>
                       )}
                     </div>
@@ -665,21 +674,18 @@ const page = () => {
 
                 {/* Checkboxes */}
                 <div className="md:col-span-2 flex items-center gap-8 pt-2">
-                  <label className="flex items-center gap-3 cursor-pointer group">
-                    <div className="relative">
-                      <input
-                        type="checkbox"
-                        name="inStock"
-                        checked={formData.inStock}
-                        onChange={handleInputChange}
-                        className="w-5 h-5 bg-black border-2 border-neutral-700 rounded-md appearance-none cursor-pointer checked:bg-emerald-500 checked:border-emerald-500 transition-all"
-                      />
-                      {formData.inStock && (
-                        <Check className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-white pointer-events-none" size={14} />
-                      )}
-                    </div>
-                    <span className="text-sm font-semibold text-white group-hover:text-neutral-300 transition-colors">In Stock</span>
-                  </label>
+                  <div>
+                    <label className="block text-sm font-semibold text-white mb-2">Stock Quantity *</label>
+                    <input
+                      type="number"
+                      name="stockQuantity"
+                      min="0"
+                      value={formData.stockQuantity}
+                      onChange={handleInputChange}
+                      placeholder="e.g., 5"
+                      className="w-full px-4 py-3 bg-black border border-neutral-800 rounded-xl text-white placeholder:text-neutral-600 focus:border-neutral-600 focus:outline-none transition-colors"
+                    />
+                  </div>
 
                   <label className="flex items-center gap-3 cursor-pointer group">
                     <div className="relative">
@@ -733,6 +739,19 @@ const page = () => {
                       />
                     </div>
                   </>
+                )}
+
+                {formData.isDeal && (
+                  <div>
+                    <label className="block text-sm font-semibold text-white mb-2">Deal Ends At</label>
+                    <input
+                      type="datetime-local"
+                      name="dealEndsAt"
+                      value={formData.dealEndsAt}
+                      onChange={handleInputChange}
+                      className="w-full px-4 py-3 bg-black border border-neutral-800 rounded-xl text-white focus:border-neutral-600 focus:outline-none transition-colors"
+                    />
+                  </div>
                 )}
               </div>
             </div>

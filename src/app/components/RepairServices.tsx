@@ -59,8 +59,8 @@ const RepairServices = () => {
                                 </CardHeader>
                                 <CardFooter className="flex flex-col space-y-3">
                                     <div className="text-center w-full">
-                                        <span className="text-2xl font-bold text-slate-900 block">{service.price}</span>
-                                        <span className="text-sm text-gray-500">Duration: {service.duration}</span>
+                                        {/* <span className="text-2xl font-bold text-slate-900 block">{service.price}</span> */}
+                                        {/* <span className="text-md text-gray-700">Duration: {service.duration}</span> */}
                                     </div>
                                     <Link href={'/repair'}>
                                         <Button className="w-full bg-slate-900 hover:bg-slate-800 text-white font-semibold">

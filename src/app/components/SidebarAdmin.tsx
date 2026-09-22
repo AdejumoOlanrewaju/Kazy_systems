@@ -1,30 +1,44 @@
-"use client"
-
-import { usePathname } from 'next/navigation';
-import React, { useState } from 'react'
+import { usePathname, useRouter } from 'next/navigation';
+import React from 'react'
 import {
     Package,
     LayoutDashboard,
     LogOut,
     ShoppingBag,
-    BarChart3,
-    Tag,
-    Settings,
+    User,
 } from "lucide-react";
 import Link from 'next/link';
+import { signOut } from "firebase/auth";
+import { auth } from "@/lib/firebase";
 import { useLaptopStore } from '@/store/laptopStore';
 import { useSidebarStore } from '@/store/sidebarStore';
+import { useAdminAuth } from '@/lib/useAdminAuth';
+
 const SidebarAdmin = () => {
-    const {laptopStoreData} = useLaptopStore()
-    const [sidebarOpen, setSidebarOpen] = useState(true);
+    const { laptopStoreData } = useLaptopStore()
     const pathname = usePathname();
-    const {isOpen} = useSidebarStore()
+    const router = useRouter();
+    const { isOpen } = useSidebarStore()
+    const { user } = useAdminAuth() // same hook that already guards this page — just reusing its user
+
     const menuItems = [
         { icon: LayoutDashboard, label: 'Dashboard', active: false, link: "/admin" },
         { icon: Package, label: 'Products', active: true, badge: laptopStoreData.length, link: "/admin/product" },
-        { icon: ShoppingBag, label: 'Deals', active: false, badge: '0', link: "/admin/deals" },
-        { icon: Settings, label: 'Settings', active: false, link: "/admin/settings" },
+        { icon: ShoppingBag, label: 'Deals', active: false, link: "/admin/deals" },
+        { icon: User, label: 'Leads', active: false, link: "/admin/leads" },
+        { icon: ShoppingBag, label: 'Orders', active: false, link: "/admin/order" },
     ];
+
+    const handleLogout = async () => {
+        await signOut(auth);
+        router.push("/admin/login");
+    };
+
+    // Turns "admin_kayzee@gmail.com" into "AK" for the avatar circle
+    const initials = user?.email
+        ? user.email.split("@")[0].slice(0, 2).toUpperCase()
+        : "AD";
+
     return (
         <div>
             {/* Sidebar */}
@@ -86,23 +100,24 @@ const SidebarAdmin = () => {
 
                 {/* User Profile */}
                 <div className="p-4 border-t border-neutral-800">
-                    <button className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-neutral-400 hover:text-white hover:bg-neutral-900 transition-all">
+                    <div className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-neutral-400">
                         <div className="w-8 h-8 bg-gradient-to-br from-purple-400 to-pink-500 rounded-full flex items-center justify-center flex-shrink-0 text-white font-bold text-sm">
-                            JD
+                            {initials}
                         </div>
                         {isOpen && (
-                            <div className="flex-1 text-left">
-                                <p className="text-sm font-semibold text-white">John Doe</p>
+                            <div className="flex-1 text-left overflow-hidden">
+                                <p className="text-sm font-semibold text-white truncate">{user?.email || "Admin"}</p>
                                 <p className="text-xs text-neutral-500">Admin</p>
                             </div>
                         )}
+                    </div>
+                    <button
+                        onClick={handleLogout}
+                        className="w-full flex items-center gap-3 px-4 py-3 mt-2 rounded-xl text-neutral-400 hover:text-red-400 hover:bg-neutral-900 transition-all"
+                    >
+                        <LogOut size={20} className="flex-shrink-0" />
+                        {isOpen && <span className="text-sm font-medium">Logout</span>}
                     </button>
-                    {isOpen && (
-                        <button className="w-full flex items-center gap-3 px-4 py-3 mt-2 rounded-xl text-neutral-400 hover:text-red-400 hover:bg-neutral-900 transition-all">
-                            <LogOut size={20} />
-                            <span className="text-sm font-medium">Logout</span>
-                        </button>
-                    )}
                 </div>
             </aside>
         </div>
