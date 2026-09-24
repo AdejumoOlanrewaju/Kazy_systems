@@ -52,6 +52,21 @@ const CheckoutPage = () => {
       if (verifyData.verified) {
         await markOrderPaid(orderId, reference)
         await decrementStock(items.map((i) => ({ id: i.id, quantity: i.quantity })))
+        // Fire-and-forget — don't block the customer's success flow on this.
+        fetch("/api/notify-order", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            orderId,
+            customerName: form.customerName,
+            phone: form.phone,
+            email: form.email,
+            address: form.address,
+            items,
+            total: totalPrice(),
+          }),
+        }).catch((err) => console.error("Notification request failed:", err))
+
         clearCart()
         toast.success("Payment successful!")
         // Matches the actual route: src/app/order-confirmation/page.tsx
@@ -124,7 +139,7 @@ const CheckoutPage = () => {
     <>
       <Script src="https://js.paystack.co/v1/inline.js" strategy="afterInteractive" />
       <div className="bg-gray-50 min-h-screen">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
           <Link href="/cart" className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-slate-900 transition-colors mb-2">
             <ArrowLeft className="w-4 h-4" />
             Back to Cart

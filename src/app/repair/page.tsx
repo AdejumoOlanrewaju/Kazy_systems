@@ -5,8 +5,9 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { Award, Check, MessageCircle, Shield, Wrench, Zap } from "lucide-react"
+import { Award, Check, Mail, MessageCircle, Shield, Wrench, Zap } from "lucide-react"
 import { submitLead } from "@/lib/leadService"
+import { toast } from "sonner"
 
 const Page = () => {
   const [repairForm, setRepairForm] = useState({
@@ -17,7 +18,7 @@ const Page = () => {
     issue: "",
     description: "",
   })
-  const [submitting, setSubmitting] = useState(false)
+  const [submittingVia, setSubmittingVia] = useState<"whatsapp" | "email" | null>(null)
 
   const handleRepairFormChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
@@ -26,16 +27,30 @@ const Page = () => {
     setRepairForm((prev) => ({ ...prev, [name]: value }))
   }
 
-  const handleRepairSubmit = async (e: FormEvent) => {
-    e.preventDefault()
-
-    // Validate (extra safety)
+  const isFormValid = () => {
     if (!repairForm.name || !repairForm.email || !repairForm.phone || !repairForm.issue) {
-      alert("Please fill in all required fields.")
-      return
+      toast.error("Please fill in all required fields.")
+      return false
     }
+    return true
+  }
 
-    setSubmitting(true)
+  const resetForm = () => {
+    setRepairForm({
+      name: "",
+      email: "",
+      phone: "",
+      laptopBrand: "",
+      issue: "",
+      description: "",
+    })
+  }
+
+  const handleWhatsAppSubmit = async (e: FormEvent) => {
+    e.preventDefault()
+    if (!isFormValid()) return
+
+    setSubmittingVia("whatsapp")
     try {
       // Save first — this is the permanent record, independent of WhatsApp.
       await submitLead("repair", repairForm)
@@ -43,7 +58,7 @@ const Page = () => {
       console.error("Failed to save repair lead:", err)
       // Don't block the user — still let them reach us via WhatsApp.
     }
-    setSubmitting(false)
+    setSubmittingVia(null)
 
     const message = `*Laptop Repair Request*%0A
 Name: ${repairForm.name}%0A
@@ -56,15 +71,33 @@ Description: ${repairForm.description}`
     const whatsappUrl = `https://wa.me/2349165210359?text=${message}`
     window.open(whatsappUrl, "_blank")
 
-    // Reset form
-    setRepairForm({
-      name: "",
-      email: "",
-      phone: "",
-      laptopBrand: "",
-      issue: "",
-      description: "",
-    })
+    resetForm()
+  }
+
+  const handleEmailSubmit = async () => {
+    if (!isFormValid()) return
+
+    setSubmittingVia("email")
+    try {
+      // Save the lead the same way the WhatsApp path does.
+      await submitLead("repair", repairForm)
+
+      const res = await fetch("/api/notify-repair-lead", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(repairForm),
+      })
+
+      if (!res.ok) throw new Error("Email send failed")
+
+      toast.success("Request sent! Check your email for confirmation.")
+      resetForm()
+    } catch (err) {
+      console.error("Failed to send repair request via email:", err)
+      toast.error("Couldn't send the email — please try WhatsApp instead, or check your connection.")
+    } finally {
+      setSubmittingVia(null)
+    }
   }
 
   return (
@@ -92,7 +125,6 @@ Description: ${repairForm.description}`
                     icon: <Wrench className="w-6 h-6 text-white" />,
                     title: "Screen Replacement",
                     desc: "Professional LCD/LED screen repair",
-                    // price: "From $99 • 2-4 hours",
                   },
                   {
                     icon: <Zap className="w-6 h-6 text-white" />,
@@ -104,13 +136,11 @@ Description: ${repairForm.description}`
                     icon: <Shield className="w-6 h-6 text-white" />,
                     title: "Virus Removal",
                     desc: "Complete system cleanup and security",
-                    // price: "From $59 • 3-5 hours",
                   },
                   {
                     icon: <Award className="w-6 h-6 text-white" />,
                     title: "Hardware Repair",
                     desc: "Motherboard, battery repairs",
-                    // price: "From $149 • 1-2 days",
                   },
                 ].map((service, i) => (
                   <div key={i} className="flex items-start space-x-4 p-4 bg-gray-50 rounded-lg">
@@ -129,8 +159,6 @@ Description: ${repairForm.description}`
               <h3 className="text-xl font-bold mb-3">Why Choose Us?</h3>
               <ul className="space-y-3">
                 {[
-                  // "Free diagnostics included",
-                  // "90-day warranty on all repairs",
                   "Certified technicians only",
                   "Fast turnaround time",
                   "Genuine parts only",
@@ -149,12 +177,12 @@ Description: ${repairForm.description}`
             <CardHeader>
               <CardTitle className="text-2xl">Request a Repair</CardTitle>
               <CardDescription>
-                Fill out the form and we'll contact you via WhatsApp
+                Fill out the form, then choose how you'd like us to receive it
               </CardDescription>
             </CardHeader>
 
             <CardContent>
-              <form onSubmit={handleRepairSubmit} className="space-y-4">
+              <form onSubmit={handleWhatsAppSubmit} className="space-y-4">
                 {[
                   { label: "Full Name", name: "name", type: "text", placeholder: "Enter your full name" },
                   { label: "Email Address", name: "email", type: "email", placeholder: "your.email@example.com" },
@@ -214,18 +242,32 @@ Description: ${repairForm.description}`
                   />
                 </div>
 
-                <Button
-                  type="submit"
-                  size="lg"
-                  disabled={submitting}
-                  className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold disabled:opacity-60"
-                >
-                  <MessageCircle className="w-5 h-5 mr-2" />
-                  {submitting ? "Submitting..." : "Submit via WhatsApp"}
-                </Button>
+                {/* Two submission channels, same form data */}
+                <div className="grid grid-cols-2 gap-3 pt-1">
+                  <Button
+                    type="submit"
+                    size="lg"
+                    disabled={submittingVia !== null}
+                    className="bg-green-600 hover:bg-green-700 text-white font-semibold disabled:opacity-60"
+                  >
+                    <MessageCircle className="w-5 h-5 mr-2" />
+                    {submittingVia === "whatsapp" ? "Submitting..." : "WhatsApp"}
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={handleEmailSubmit}
+                    size="lg"
+                    variant="outline"
+                    disabled={submittingVia !== null}
+                    className="border-slate-900 text-slate-900 font-semibold disabled:opacity-60"
+                  >
+                    <Mail className="w-5 h-5 mr-2" />
+                    {submittingVia === "email" ? "Sending..." : "Email"}
+                  </Button>
+                </div>
 
                 <p className="text-xs text-center text-gray-600">
-                  By submitting, you'll be redirected to WhatsApp with your repair details
+                  Choose WhatsApp for a quick chat, or Email if you'd rather we reach out that way
                 </p>
               </form>
             </CardContent>

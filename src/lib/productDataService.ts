@@ -3,6 +3,7 @@ import { collection, addDoc, getDocs, updateDoc, deleteDoc, doc, onSnapshot, arr
 import { LaptopType } from "./types";
 import { getPublicIdFromUrl } from "@/lib/cloudinary";
 import { laptops } from "./data";
+import { auth } from "@/lib/firebase";
 export const addProduct = async (data: LaptopType) => {
     try {
         const docRef = await addDoc(collection(db, "products"), data);
@@ -43,9 +44,18 @@ export const deleteProductImage = async (productId: string, imageUrl: string) =>
     try {
         const publicId = getPublicIdFromUrl(imageUrl);
         if (publicId) {
+            const token = await auth.currentUser?.getIdToken();
+            if (!token) {
+                console.error("No authenticated user — cannot delete image");
+                return;
+            }
+
             await fetch("/api/cloudinary/delete", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${token}`,
+                },
                 body: JSON.stringify({ publicId }),
             });
         }
@@ -54,8 +64,6 @@ export const deleteProductImage = async (productId: string, imageUrl: string) =>
         await updateDoc(productRef, {
             images: arrayRemove(imageUrl),
         });
-
-        console.log("Image reference removed from Firestore");
     } catch (error) {
         console.error("Error deleting image:", error);
     }
