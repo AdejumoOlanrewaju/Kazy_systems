@@ -41,11 +41,11 @@ const WHY_SHOP = [
         title: 'Delivery included',
         description: 'Shipping is built into the deal price — the number you see is the number you pay.',
     },
-    {
-        icon: BadgeCheck,
-        title: '7-day return window',
-        description: "Not happy with it? Send it back within 7 days for a full refund, no questions asked.",
-    },
+    // {
+    //     icon: BadgeCheck,
+    //     title: '7-day return window',
+    //     description: "Not happy with it? Send it back within 7 days for a full refund, no questions asked.",
+    // },
 ]
 
 const page = () => {
@@ -65,7 +65,7 @@ const page = () => {
     return (
         <div className="bg-[#FAF9F6] text-[#12151C]">
             {/* Hero */}
-            <section className="bg-[#12151C] text-[#FAF9F6] h-screen">
+            <section className="bg-[#12151C] text-[#FAF9F6] sm:h-screen">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 grid lg:grid-cols-[1.15fr_0.85fr] gap-12 items-center">
                     <div>
                         <Badge className="bg-amber-500 text-[#12151C] border-0 px-3 py-1 text-sm font-semibold mb-6 hover:bg-amber-500">
@@ -168,7 +168,7 @@ const page = () => {
                     </div>
 
                     {dealLaptops.length === 0 || countdown?.expired ? (
-                        <div className="border border-dashed border-[#D8D5CC] rounded-2xl py-20 px-6 text-center">
+                        <div className="border border-dashed border-[#D8D5CC] rounded-2xl py-20 px-4 sm:px-6 text-center">
                             <PackageSearch className="w-10 h-10 text-[#B5B0A3] mx-auto mb-4" />
                             <h3 className="text-xl font-semibold text-[#12151C] mb-2">
                                 No deals are live right now

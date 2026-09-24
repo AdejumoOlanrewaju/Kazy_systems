@@ -117,10 +117,24 @@ const Navbar = () => {
                                 href={link.href}
                                 onClick={() => setMobileMenuOpen(false)}
                                 className={`
-                                    relative block py-2 font-medium
+                                    relative block py-2 font-medium w-fit
                                     ${isActive(link.href)
                                         ? 'text-slate-900'
                                         : 'text-gray-700 hover:text-slate-900'
+                                    }
+                                    after:absolute
+                                    after:left-0
+                                    after:bottom-0
+                                    after:h-[2px]
+                                    after:bg-slate-900
+                                    after:transition-all
+                                    after:duration-300
+                                    after:ease-out
+                                
+
+                                    ${isActive(link.href)
+                                        ? 'after:w-full'
+                                        : 'after:w-0 hover:after:w-full'
                                     }
                                 `}
                             >
