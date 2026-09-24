@@ -33,14 +33,14 @@ const Hero = () => {
                                 <TrendingUp className="w-4 h-4 mr-2" />
                                 Limited Time Sale - Up to 20% Off
                             </Badge>
-                            <h1 className="text-5xl lg:text-6xl font-bold leading-tight">
+                            <h1 className="text-[40px] sm:text-5xl lg:text-6xl font-bold leading-tight">
                                 Premium Laptops
                                 <span className="block text-amber-400">Expert Repairs</span>
                             </h1>
-                            <p className="text-xl text-gray-300 leading-relaxed">
+                            <p className="text-[17px] sm:text-xl text-gray-300 leading-relaxed mt-0">
                                 Shop the latest laptops from top brands with unbeatable prices. Professional repair services with same-day turnaround available.
                             </p>
-                            <div className="flex flex-col sm:flex-row gap-4">
+                            <div className="flex flex-wrap gap-4">
                                 <Link href={"/shop"}>
                                     <Button size="lg" className="bg-amber-600 hover:bg-amber-700 text-white font-semibold text-lg px-8">
                                         Shop Now

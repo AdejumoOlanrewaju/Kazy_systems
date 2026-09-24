@@ -65,7 +65,7 @@ const ProductDetailsUI = ({ productId }: { productId: string }) => {
                             <img
                                 src={mainImage}
                                 alt={laptopProduct?.name}
-                                className="w-full h-[450px] object-cover"
+                                className="w-full h-[330px] sm:h-[450px] object-cover"
                             />
                         </div>
                         <div className="grid grid-cols-4 gap-3">
@@ -83,7 +83,7 @@ const ProductDetailsUI = ({ productId }: { productId: string }) => {
                                     <img
                                         src={img}
                                         alt={`${laptopProduct?.name} view ${i}`}
-                                        className="w-full h-[76px] rounded object-cover"
+                                        className="w-full h-[50px] sm:h-[76px] rounded object-cover"
                                     />
                                 </button>
                             ))}
@@ -186,8 +186,8 @@ const ProductDetailsUI = ({ productId }: { productId: string }) => {
                                 {inStock ? 'Add to cart' : 'Out of stock'}
                             </Button>
                             <WhatsappBtn product={laptopProduct} />
-                            <p className="text-center text-sm text-gray-500 flex items-center justify-center gap-1.5">
-                                <MessageCircle className="w-4 h-4" />
+                            <p className="sm:text-center text-sm text-gray-500 flex items-center justify-center gap-1.5">
+                                <MessageCircle className="w-5 h-5" />
                                 Or chat with us on WhatsApp to place your order
                             </p>
                         </div>

@@ -14,7 +14,7 @@ const WhatsappBtn = (prop: any) => {
     return (
         <div>
             <Button
-                size="lg"
+                size="default"
                 className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold text-lg h-14"
                 onClick={() => handleWhatsAppOrder(prop)}
             >

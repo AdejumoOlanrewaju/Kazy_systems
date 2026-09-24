@@ -160,14 +160,14 @@ const page = () => {
                                 This week's deals
                             </h2>
                             <p className="text-[#6B7280]">
-                                {dealLaptops.length > 0
+                                {dealLaptops.length > 0 && countdown && !countdown.expired
                                     ? `${dealLaptops.length} laptop${dealLaptops.length === 1 ? '' : 's'} marked down right now`
                                     : 'Restocking — new deals are added every week'}
                             </p>
                         </div>
                     </div>
 
-                    {dealLaptops.length === 0 ? (
+                    {dealLaptops.length === 0 || countdown?.expired ? (
                         <div className="border border-dashed border-[#D8D5CC] rounded-2xl py-20 px-6 text-center">
                             <PackageSearch className="w-10 h-10 text-[#B5B0A3] mx-auto mb-4" />
                             <h3 className="text-xl font-semibold text-[#12151C] mb-2">

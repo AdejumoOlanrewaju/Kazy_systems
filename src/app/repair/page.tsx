@@ -106,7 +106,7 @@ Description: ${repairForm.description}`
         {/* Section Header */}
         <div className="text-center mb-12">
           <h2 className="text-4xl font-bold text-slate-900 mb-3">Professional Repair Services</h2>
-          <p className="text-xl text-gray-600">
+          <p className="text-[17px] text-gray-600">
             Fill out the form below to request a laptop repair
           </p>
         </div>
