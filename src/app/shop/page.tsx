@@ -1,70 +1,113 @@
 "use client"
 import React, { useState } from 'react'
-import { laptops } from '@/lib/data';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { ChevronRight, Heart, Laptop, Search, Star, TrendingUp, X } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ChevronDown, ChevronUp, Laptop, Search, SlidersHorizontal, TrendingUp, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
 import ProductCard from '../components/ProductCard';
 import { Input } from '@/components/ui/input';
 import { useLaptopStore } from '@/store/laptopStore';
-import { Skeleton } from '@/components/ui/skeleton';
 import LoadingProduct from '../components/LoadingProduct';
+import { LaptopType } from '@/lib/types';
+import { getProductStock, getProductPrice, getPricing, getEffectivePrice } from '@/lib/productDisplay';
+const CATEGORIES = [
+    { value: 'all', label: 'All Laptops' },
+    { value: 'premium', label: 'Premium' },
+    { value: 'gaming', label: 'Gaming' },
+    { value: 'business', label: 'Business' },
+    { value: 'budget', label: 'Budget Friendly' },
+];
+
+const CONDITIONS = [
+    { value: 'all', label: 'Any condition' },
+    { value: 'new', label: 'New' },
+    { value: 'refurbished', label: 'Refurbished' },
+    { value: 'used', label: 'Used' },
+];
+
+// Each range is [min, max)
+const PRICE_RANGES = [
+    { value: 'all', label: 'All Prices', min: 0, max: Infinity },
+    { value: 'under300', label: 'Under ₦300,000', min: 0, max: 300000 },
+    { value: '300-500', label: '₦300,000 - ₦500,000', min: 300000, max: 500000 },
+    { value: '500-750', label: '₦500,000 - ₦750,000', min: 500000, max: 750000 },
+    { value: '750-1000', label: '₦750,000 - ₦1,000,000', min: 750000, max: 1000000 },
+    { value: 'over1000', label: 'Over ₦1,000,000', min: 1000000, max: Infinity },
+];
+
+const filterButtonClass = (active: boolean) =>
+    `w-full text-left px-4 py-2 rounded-lg transition-colors ${active ? 'bg-slate-900 text-white' : 'bg-gray-100 hover:bg-gray-200'}`;
+
+// Every price a customer could actually pay for this product.
+const pricesOf = (l: LaptopType): number[] =>
+    l.configurations?.length
+        ? l.configurations.map((c) => getEffectivePrice(l, c).price)
+        : [getEffectivePrice(l).price];
+
+// Everything searchable about a product, including its configurations'
+// processor/RAM/storage and spec sheet, so "i7" or "16GB" finds the right laptops.
+const searchableText = (l: LaptopType): string =>
+    [
+        l.name,
+        l.category,
+        ...(l.configurations || []).flatMap((c) => [c.processor, c.ram, c.storage, c.customLabel]),
+        ...(l.specSheet || []).map((s) => s.value),
+    ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+
 const page = () => {
     const [sortBy, setSortBy] = useState('featured');
     const [priceRange, setPriceRange] = useState('all');
     const [selectedCategory, setSelectedCategory] = useState('all');
+    const [selectedCondition, setSelectedCondition] = useState('all');
     const [searchQuery, setSearchQuery] = useState('');
+    const [inStockOnly, setInStockOnly] = useState(false);
+    const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
     const { laptopStoreData, loadingStore } = useLaptopStore()
 
-    console.log(laptopStoreData)
-    // Filter and sort laptops for shop page
     const getFilteredAndSortedLaptops = () => {
         let filtered = [...laptopStoreData];
 
-        // Filter by search query
-        if (searchQuery.trim()) {
-            filtered = filtered.filter(laptop =>
-                laptop.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                laptop.specs.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                laptop.category.toLowerCase().includes(searchQuery.toLowerCase())
-            );
+        // Search
+        const q = searchQuery.trim().toLowerCase();
+        if (q) {
+            filtered = filtered.filter((laptop) => searchableText(laptop).includes(q));
         }
 
-        // Filter by category
+        // Category
         if (selectedCategory !== 'all') {
-            filtered = filtered.filter(laptop => laptop.category === selectedCategory);
+            filtered = filtered.filter((laptop) => laptop.category === selectedCategory);
         }
 
-        // Filter by price range
-        if (priceRange === 'under300') {
-            filtered = filtered.filter(laptop => laptop.price < 300000);
-
-        } else if (priceRange === '300-500') {
-            filtered = filtered.filter(
-                laptop => laptop.price >= 300000 && laptop.price < 500000
-            );
-
-        } else if (priceRange === '500-750') {
-            filtered = filtered.filter(
-                laptop => laptop.price >= 500000 && laptop.price < 750000
-            );
-
-        } else if (priceRange === '750-1000') {
-            filtered = filtered.filter(
-                laptop => laptop.price >= 750000 && laptop.price < 1000000
-            );
-
-        } else if (priceRange === 'over1000') {
-            filtered = filtered.filter(laptop => laptop.price >= 1000000);
+        // Condition (products saved before this field existed count as "used",
+        // matching what their badge already shows)
+        if (selectedCondition !== 'all') {
+            filtered = filtered.filter((laptop) => (laptop.condition || 'used') === selectedCondition);
         }
 
-        // Sort
+        // Stock — configured products count the sum of their configurations
+        if (inStockOnly) {
+            filtered = filtered.filter((laptop) => getProductStock(laptop) > 0);
+        }
+
+        // Price — a configured product matches if ANY of its configurations
+        // falls in the range, so a laptop with ₦245k and ₦310k options shows
+        // up under both "Under ₦300,000" and "₦300,000 - ₦500,000".
+        const range = PRICE_RANGES.find((r) => r.value === priceRange);
+        if (range && range.value !== 'all') {
+            filtered = filtered.filter((laptop) =>
+                pricesOf(laptop).some((p) => p >= range.min && p < range.max)
+            );
+        }
+
+        // Sort — by the price a customer starts from
         if (sortBy === 'price-low') {
-            filtered.sort((a, b) => a.price - b.price);
+            filtered.sort((a, b) => getProductPrice(a) - getProductPrice(b));
         } else if (sortBy === 'price-high') {
-            filtered.sort((a, b) => b.price - a.price);
+            filtered.sort((a, b) => getProductPrice(b) - getProductPrice(a));
         } else if (sortBy === 'rating') {
             filtered.sort((a, b) => b.rating - a.rating);
         } else if (sortBy === 'popular') {
@@ -75,6 +118,29 @@ const page = () => {
     };
 
     const displayLaptops = getFilteredAndSortedLaptops();
+
+    const activeFilterCount = [
+        selectedCategory !== 'all',
+        selectedCondition !== 'all',
+        priceRange !== 'all',
+        inStockOnly,
+        searchQuery.trim() !== '',
+    ].filter(Boolean).length;
+
+    // "Save up to X%" is computed from real live deals instead of a hardcoded number.
+    const maxDealPercent = laptopStoreData
+        .filter((l) => l.isDeal && (!l.dealEndsAt || l.dealEndsAt > Date.now()))
+        .reduce((max, l) => Math.max(max, getPricing(l).percent), 0);
+
+    const clearAllFilters = () => {
+        setSelectedCategory('all');
+        setSelectedCondition('all');
+        setPriceRange('all');
+        setSearchQuery('');
+        setSortBy('featured');
+        setInStockOnly(false);
+    };
+
     return (
         <div>
             {/* Shop Hero */}
@@ -97,11 +163,29 @@ const page = () => {
             {/* Filters and Products */}
             <section className="py-12">
                 <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8">
+                    {/* Mobile Filter Toggle */}
+                    <div className="lg:hidden mb-6">
+                        <Button
+                            onClick={() => setMobileFiltersOpen(!mobileFiltersOpen)}
+                            variant="outline"
+                            className="w-full justify-between border-2"
+                        >
+                            <span className="flex items-center gap-2">
+                                <SlidersHorizontal className="w-4 h-4" />
+                                Filters
+                                {activeFilterCount > 0 && (
+                                    <Badge className="bg-slate-900 text-white ml-1">{activeFilterCount}</Badge>
+                                )}
+                            </span>
+                            {mobileFiltersOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                        </Button>
+                    </div>
+
                     <div className="grid lg:grid-cols-4 gap-8">
                         {/* Sidebar Filters */}
-                        <div className="lg:col-span-1">
+                        <div className={`lg:col-span-1 ${mobileFiltersOpen ? 'block' : 'hidden'} lg:block`}>
                             <div className="sticky top-24 space-y-6 h-screen overflow-y-scroll">
-                                {/* Search Box - Mobile/Tablet */}
+                                {/* Search */}
                                 <Card className="border-2 ">
                                     <CardHeader>
                                         <CardTitle className="text-lg">Search Products</CardTitle>
@@ -111,7 +195,7 @@ const page = () => {
                                             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
                                             <Input
                                                 type="text"
-                                                placeholder="Search laptops..."
+                                                placeholder="Name, i7, 16GB, SSD..."
                                                 value={searchQuery}
                                                 onChange={(e) => setSearchQuery(e.target.value)}
                                                 className="pl-10 pr-10"
@@ -127,159 +211,79 @@ const page = () => {
                                         </div>
                                     </CardContent>
                                 </Card>
-                                {/* Category Filter */}
+
+                                {/* Category */}
                                 <Card className="border-2">
                                     <CardHeader>
                                         <CardTitle className="text-lg">Category</CardTitle>
                                     </CardHeader>
                                     <CardContent className="space-y-2">
-                                        <button
-                                            onClick={() => setSelectedCategory('all')}
-                                            className={`w-full text-left px-4 py-2 rounded-lg transition-colors ${selectedCategory === 'all'
-                                                ? 'bg-slate-900 text-white'
-                                                : 'bg-gray-100 hover:bg-gray-200'
-                                                }`}
-                                        >
-                                            All Laptops
-                                        </button>
-                                        <button
-                                            onClick={() => setSelectedCategory('premium')}
-                                            className={`w-full text-left px-4 py-2 rounded-lg transition-colors ${selectedCategory === 'premium'
-                                                ? 'bg-slate-900 text-white'
-                                                : 'bg-gray-100 hover:bg-gray-200'
-                                                }`}
-                                        >
-                                            Premium
-                                        </button>
-                                        <button
-                                            onClick={() => setSelectedCategory('gaming')}
-                                            className={`w-full text-left px-4 py-2 rounded-lg transition-colors ${selectedCategory === 'gaming'
-                                                ? 'bg-slate-900 text-white'
-                                                : 'bg-gray-100 hover:bg-gray-200'
-                                                }`}
-                                        >
-                                            Gaming
-                                        </button>
-                                        <button
-                                            onClick={() => setSelectedCategory('business')}
-                                            className={`w-full text-left px-4 py-2 rounded-lg transition-colors ${selectedCategory === 'business'
-                                                ? 'bg-slate-900 text-white'
-                                                : 'bg-gray-100 hover:bg-gray-200'
-                                                }`}
-                                        >
-                                            Business
-                                        </button>
-                                        <button
-                                            onClick={() => setSelectedCategory('budget')}
-                                            className={`w-full text-left px-4 py-2 rounded-lg transition-colors ${selectedCategory === 'budget'
-                                                ? 'bg-slate-900 text-white'
-                                                : 'bg-gray-100 hover:bg-gray-200'
-                                                }`}
-                                        >
-                                            Budget Friendly
-                                        </button>
+                                        {CATEGORIES.map((c) => (
+                                            <button
+                                                key={c.value}
+                                                onClick={() => setSelectedCategory(c.value)}
+                                                className={filterButtonClass(selectedCategory === c.value)}
+                                            >
+                                                {c.label}
+                                            </button>
+                                        ))}
                                     </CardContent>
                                 </Card>
 
-                                {/* Price Range Filter */}
+                                {/* Condition */}
+                                <Card className="border-2">
+                                    <CardHeader>
+                                        <CardTitle className="text-lg">Condition</CardTitle>
+                                    </CardHeader>
+                                    <CardContent className="space-y-2">
+                                        {CONDITIONS.map((c) => (
+                                            <button
+                                                key={c.value}
+                                                onClick={() => setSelectedCondition(c.value)}
+                                                className={filterButtonClass(selectedCondition === c.value)}
+                                            >
+                                                {c.label}
+                                            </button>
+                                        ))}
+                                    </CardContent>
+                                </Card>
+
+                                {/* Price Range */}
                                 <Card className="border-2">
                                     <CardHeader>
                                         <CardTitle className="text-lg">Price Range</CardTitle>
                                     </CardHeader>
                                     <CardContent className="space-y-2">
-                                        <button
-                                            onClick={() => setPriceRange('all')}
-                                            className={`w-full text-left px-4 py-2 rounded-lg transition-colors ${priceRange === 'all'
-                                                ? 'bg-slate-900 text-white'
-                                                : 'bg-gray-100 hover:bg-gray-200'
-                                                }`}
-                                        >
-                                            All Prices
-                                        </button>
-                                        <button
-                                            onClick={() => setPriceRange('under300')}
-                                            className={`w-full text-left px-4 py-2 rounded-lg transition-colors ${priceRange === 'under300'
-                                                ? 'bg-slate-900 text-white'
-                                                : 'bg-gray-100 hover:bg-gray-200'
-                                                }`}
-                                        >
-                                            Under ₦300,000
-                                        </button>
-
-                                        <button
-                                            onClick={() => setPriceRange('300-500')}
-                                            className={`w-full text-left px-4 py-2 rounded-lg transition-colors ${priceRange === '300-500'
-                                                ? 'bg-slate-900 text-white'
-                                                : 'bg-gray-100 hover:bg-gray-200'
-                                                }`}
-                                        >
-                                            ₦300,000 - ₦500,000
-                                        </button>
-
-                                        <button
-                                            onClick={() => setPriceRange('500-750')}
-                                            className={`w-full text-left px-4 py-2 rounded-lg transition-colors ${priceRange === '500-750'
-                                                ? 'bg-slate-900 text-white'
-                                                : 'bg-gray-100 hover:bg-gray-200'
-                                                }`}
-                                        >
-                                            ₦500,000 - ₦750,000
-                                        </button>
-
-                                        <button
-                                            onClick={() => setPriceRange('750-1000')}
-                                            className={`w-full text-left px-4 py-2 rounded-lg transition-colors ${priceRange === '750-1000'
-                                                ? 'bg-slate-900 text-white'
-                                                : 'bg-gray-100 hover:bg-gray-200'
-                                                }`}
-                                        >
-                                            ₦750,000 - ₦1,000,000
-                                        </button>
-
-                                        <button
-                                            onClick={() => setPriceRange('over1000')}
-                                            className={`w-full text-left px-4 py-2 rounded-lg transition-colors ${priceRange === 'over1000'
-                                                ? 'bg-slate-900 text-white'
-                                                : 'bg-gray-100 hover:bg-gray-200'
-                                                }`}
-                                        >
-                                            Over ₦1,000,000
-                                        </button>
+                                        {PRICE_RANGES.map((r) => (
+                                            <button
+                                                key={r.value}
+                                                onClick={() => setPriceRange(r.value)}
+                                                className={filterButtonClass(priceRange === r.value)}
+                                            >
+                                                {r.label}
+                                            </button>
+                                        ))}
                                     </CardContent>
                                 </Card>
 
-                                {/* Brands Filter */}
-                                {/* <Card className="border-2">
-                                    <CardHeader>
-                                        <CardTitle className="text-lg">Popular Brands</CardTitle>
-                                    </CardHeader>
-                                    <CardContent className="space-y-2">
-                                        <div className="flex items-center space-x-2">
-                                            <input type="checkbox" id="apple" className="w-4 h-4" />
-                                            <label htmlFor="apple" className="text-sm cursor-pointer">Apple</label>
-                                        </div>
-                                        <div className="flex items-center space-x-2">
-                                            <input type="checkbox" id="dell" className="w-4 h-4" />
-                                            <label htmlFor="dell" className="text-sm cursor-pointer">Dell</label>
-                                        </div>
-                                        <div className="flex items-center space-x-2">
-                                            <input type="checkbox" id="hp" className="w-4 h-4" />
-                                            <label htmlFor="hp" className="text-sm cursor-pointer">HP</label>
-                                        </div>
-                                        <div className="flex items-center space-x-2">
-                                            <input type="checkbox" id="lenovo" className="w-4 h-4" />
-                                            <label htmlFor="lenovo" className="text-sm cursor-pointer">Lenovo</label>
-                                        </div>
-                                        <div className="flex items-center space-x-2">
-                                            <input type="checkbox" id="asus" className="w-4 h-4" />
-                                            <label htmlFor="asus" className="text-sm cursor-pointer">ASUS</label>
-                                        </div>
-                                        <div className="flex items-center space-x-2">
-                                            <input type="checkbox" id="acer" className="w-4 h-4" />
-                                            <label htmlFor="acer" className="text-sm cursor-pointer">Acer</label>
-                                        </div>
+                                {/* Stock Filter */}
+                                <Card className="border-2">
+                                    <CardContent className="pt-6">
+                                        <label className="flex items-center justify-between cursor-pointer">
+                                            <span className="text-sm font-semibold text-slate-900">In Stock Only</span>
+                                            <button
+                                                onClick={() => setInStockOnly(!inStockOnly)}
+                                                className={`relative w-11 h-6 rounded-full transition-colors ${inStockOnly ? 'bg-slate-900' : 'bg-gray-300'
+                                                    }`}
+                                            >
+                                                <span
+                                                    className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform ${inStockOnly ? 'translate-x-5' : 'translate-x-0'
+                                                        }`}
+                                                />
+                                            </button>
+                                        </label>
                                     </CardContent>
-                                </Card> */}
+                                </Card>
 
                                 {/* Special Offers */}
                                 <Card className="border-2 bg-gradient-to-br from-amber-50 to-orange-50 border-amber-200">
@@ -290,15 +294,15 @@ const page = () => {
                                         </CardTitle>
                                     </CardHeader>
                                     <CardContent>
-                                        <p className="text-sm text-gray-700 mb-4">Check out our exclusive deals and save up to 21%!</p>
+                                        <p className="text-sm text-gray-700 mb-4">
+                                            {maxDealPercent > 0
+                                                ? `Check out our exclusive deals and save up to ${maxDealPercent}%!`
+                                                : 'Check out our latest deals and special offers.'}
+                                        </p>
                                         <Link href={"/deals"}>
-                                            <Button
-                                                className="w-full bg-amber-500 hover:bg-amber-600 text-slate-900 font-semibold"
-
-                                            >
+                                            <Button className="w-full bg-amber-500 hover:bg-amber-600 text-slate-900 font-semibold">
                                                 View Deals
                                             </Button>
-
                                         </Link>
                                     </CardContent>
                                 </Card>
@@ -344,10 +348,7 @@ const page = () => {
                                         <h3 className="text-2xl font-bold text-slate-900 mb-2">No Products Found</h3>
                                         <p className="text-gray-600 mb-6">Try adjusting your filters to see more results</p>
                                         <Button
-                                            onClick={() => {
-                                                setSelectedCategory('all');
-                                                setPriceRange('all');
-                                            }}
+                                            onClick={clearAllFilters}
                                             className="bg-slate-900 hover:bg-slate-800 text-white"
                                         >
                                             Clear All Filters

@@ -10,7 +10,7 @@ export default function robots(): MetadataRoute.Robots {
         "/admin/",
         "/cart",
         "/checkout",
-        "/orderConfirmation",
+        "/order-confirmation",
         "/api/",
       ],
     },

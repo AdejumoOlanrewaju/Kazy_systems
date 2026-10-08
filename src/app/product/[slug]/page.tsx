@@ -25,9 +25,14 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     }
 
     const title = product.name
+    const configPrices = product.configurations?.map((c: any) => c.price) || []
+    const fallbackPriceText = configPrices.length > 0
+        ? `From ₦${Math.min(...configPrices).toLocaleString()}`
+        : `₦${product.price?.toLocaleString()}`
+
     const description = product.description
-        ? product.description.slice(0, 155) // Google truncates around here anyway
-        : `${product.name} — ₦${product.price?.toLocaleString()}. Available now at Kayzee Global Computer Networks.`
+        ? product.description.slice(0, 155)
+        : `${product.name} — ${fallbackPriceText}. Available now at Kayzee Global Computer Networks.`
     const image = product.images?.[0]
 
     return {
@@ -57,7 +62,7 @@ const page = async ({ params }: Props) => {
             <div>
                 {/* Product Details */}
                 <div className="max-w-[1440px] mx-auto px-4 py-8 sm:px-6 lg:px-8 sm:py-12">
-                   <ProductDetailsUI productId={productId} />
+                    <ProductDetailsUI productId={productId} />
                 </div>
             </div>
         </>

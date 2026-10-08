@@ -4,10 +4,16 @@ import Link from "next/link"
 import { useCartStore } from "@/store/cartStore"
 import { Button } from "@/components/ui/button"
 import { ArrowLeft, Minus, Plus, ShieldCheck, ShoppingBag, Trash2, Truck } from "lucide-react"
+import { useEffect } from "react"   // add to your existing React import
+import { useLaptopStore } from "@/store/laptopStore"
 
 const CartPage = () => {
-  const { items, removeItem, updateQuantity, totalPrice, totalItems } = useCartStore()
+  const { items, removeItem, updateQuantity, totalPrice, totalItems, syncPrices } = useCartStore()
+  const { laptopStoreData, loadingStore } = useLaptopStore()
 
+  useEffect(() => {
+    if (!loadingStore && laptopStoreData.length > 0) syncPrices(laptopStoreData)
+  }, [laptopStoreData, loadingStore, syncPrices])
   if (items.length === 0) {
     return (
       <div className="min-h-[70vh] flex items-center justify-center px-4">
@@ -65,6 +71,7 @@ const CartPage = () => {
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
                         <h3 className="font-semibold text-slate-900 truncate">{item.name}</h3>
+                        {item.configurationLabel && <p className="text-xs text-gray-400">{item.configurationLabel}</p>}
                         <p className="text-sm text-gray-400 mt-0.5">{item.stockQuantity} available</p>
                       </div>
                       <button

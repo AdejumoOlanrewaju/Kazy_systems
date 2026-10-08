@@ -8,7 +8,7 @@ import React from 'react'
 import { useCartStore } from '@/store/cartStore'
 import { toast } from 'sonner'
 import { buildProductUrl } from '@/lib/slug'
-
+import { getProductSummary, getProductStock, getPricing, isDealLive } from '@/lib/productDisplay'
 const ProductCard = ({ laptop }: { laptop: any }) => {
     const slug = laptop.name.replace("/\s+/g", "-")
     const addItem = useCartStore((state) => state.addItem)
@@ -23,6 +23,8 @@ const ProductCard = ({ laptop }: { laptop: any }) => {
         addItem(laptop)
         toast.success(`${laptop.name} added to cart`)
     }
+    const stock = getProductStock(laptop)
+    const { price, oldPrice, savings, percent, isFrom } = getPricing(laptop)
     return (
         <>
             <Card className="group hover:shadow-xl transition-all duration-300 border-2 hover:border-slate-900 overflow-hidden bg-white cursor-pointer pt-0">
@@ -33,17 +35,24 @@ const ProductCard = ({ laptop }: { laptop: any }) => {
                         className="w-full h-56 object-cover group-hover:scale-110 transition-transform duration-500"
                     />
 
-                    {laptop.stockQuantity > 0 && (
-                        <div className="absolute bottom-3 gap-1 left-3 flex items-center bg-green-500 text-white py-1 px-2 rounded-xl">
-                            <span>{laptop.stockQuantity} in stock</span>
-                        </div>
-                    )}
 
-                    {laptop.isDeal && (
+                    <div className={`absolute bottom-3 gap-1 left-3 flex items-center py-1 px-2 rounded-xl text-white ${stock > 0 ? "bg-green-500" : "bg-red-500"
+                        }`}>
+                        <span>{stock > 0 ? `${stock} in stock` : "Out of Stock"}</span>
+                    </div>
+
+
+                    {isDealLive(laptop) && (
                         <span className="absolute top-4 left-4 bg-red-500 text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow">
                             {laptop.dealBadge}
                         </span>
                     )}
+
+                    <span className={`absolute top-4 right-4 text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow ${laptop.condition === "new" ? "bg-emerald-600" :
+                        laptop.condition === "refurbished" ? "bg-blue-600" : "bg-amber-600"
+                        }`}>
+                        {laptop.condition === "new" ? "New" : laptop.condition === "refurbished" ? "Refurbished" : "Used"}
+                    </span>
                 </div>
                 <CardHeader className="pb-3">
                     <div className="flex items-center justify-between mb-2">
@@ -54,15 +63,22 @@ const ProductCard = ({ laptop }: { laptop: any }) => {
                         </div>
                     </div>
                     <CardTitle className="text-lg font-bold text-slate-900 line-clamp-1">{laptop.name}</CardTitle>
-                    <CardDescription className="text-sm">{laptop.specs}</CardDescription>
+                    <CardDescription className="text-sm line-clamp-2">{getProductSummary(laptop)}</CardDescription>
                 </CardHeader>
                 <CardFooter className="flex flex-col space-y-3">
                     <div className="flex items-baseline space-x-2 w-full">
-                        <span className="text-2xl font-bold text-slate-900">₦{laptop.price.toLocaleString()}</span>
-                        <span className="text-sm text-gray-400 line-through">₦{laptop.oldPrice?.toLocaleString()}</span>
-                        {/* <Badge variant={'outline'} className="ml-auto text-green-600 border-green-600 text-xs">
-                            Save ₦{(laptop.oldPrice - laptop.price).toLocaleString()}
-                        </Badge> */}
+                        <span className="text-2xl font-bold text-slate-900">
+                            {isFrom && <span className="text-sm font-medium text-gray-500 mr-1">From</span>}
+                            ₦{price.toLocaleString()}
+                        </span>
+                        {oldPrice && (
+                            <span className="text-sm text-gray-400 line-through">₦{oldPrice.toLocaleString()}</span>
+                        )}
+                        {isDealLive(laptop) && savings > 0 && (
+                            <Badge variant={'outline'} className="ml-auto text-green-600 border-green-600 text-xs">
+                                -{percent}%
+                            </Badge>
+                        )}
                     </div>
                     <div className="flex gap-2 w-full">
                         <Link href={buildProductUrl(laptop.name, laptop.dbID)} className="flex-1">
@@ -73,15 +89,17 @@ const ProductCard = ({ laptop }: { laptop: any }) => {
                                 <ChevronRight className="w-4 h-4 ml-2" />
                             </Button>
                         </Link>
-                        <Button
-                            onClick={handleAddToCart}
-                            disabled={!laptop.stockQuantity || laptop.stockQuantity < 1}
-                            variant="outline"
-                            className="border-slate-900"
-                            title="Add to cart"
-                        >
-                            <ShoppingCart className="w-4 h-4" />
-                        </Button>
+                        {!laptop.configurations?.length && (
+                            <Button
+                                onClick={handleAddToCart}
+                                disabled={stock < 1}
+                                variant="outline"
+                                className="border-slate-900"
+                                title="Add to cart"
+                            >
+                                <ShoppingCart className="w-4 h-4" />
+                            </Button>
+                        )}
                     </div>
                 </CardFooter>
             </Card>

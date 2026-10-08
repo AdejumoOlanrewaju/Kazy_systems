@@ -3,7 +3,6 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
     ArrowRight,
-    BadgeCheck,
     PackageSearch,
     Percent,
     ShieldCheck,
@@ -11,8 +10,9 @@ import {
     Truck,
 } from 'lucide-react'
 import Link from 'next/link'
-import React, { useMemo } from 'react'
+import React from 'react'
 import ProductDeal from '../components/ProductDeal'
+import LoadingProduct from '../components/LoadingProduct'
 import { useLaptopStore } from '@/store/laptopStore'
 import { useCountdown } from '@/lib/useCountdown'
 
@@ -41,26 +41,28 @@ const WHY_SHOP = [
         title: 'Delivery included',
         description: 'Shipping is built into the deal price — the number you see is the number you pay.',
     },
-    // {
-    //     icon: BadgeCheck,
-    //     title: '7-day return window',
-    //     description: "Not happy with it? Send it back within 7 days for a full refund, no questions asked.",
-    // },
 ]
 
 const page = () => {
-    const { laptopStoreData } = useLaptopStore()
-    const dealLaptops = laptopStoreData.filter((laptop) => laptop.isDeal)
+    const { laptopStoreData, loadingStore } = useLaptopStore()
 
-    // Drive the hero countdown off whichever active deal expires soonest —
-    // real data instead of a fake shared timer.
-    const soonestDeal = useMemo(() => {
-        return dealLaptops
-            .filter((l) => l.dealEndsAt)
-            .sort((a, b) => (a.dealEndsAt! - b.dealEndsAt!))[0]
-    }, [dealLaptops])
+    // A deal is live only while it is flagged AND its end time has not passed.
+    // Checked against the clock on every render (the countdown below re-renders
+    // this page each second), so an expired deal disappears on its own without
+    // waiting for the database to be updated or for a refresh.
+    const now = Date.now()
+    const activeDeals = laptopStoreData
+        .filter((l) => l.isDeal && (!l.dealEndsAt || l.dealEndsAt > now))
+        .sort(
+            (a, b) =>
+                (a.dealEndsAt ?? Number.MAX_SAFE_INTEGER) - (b.dealEndsAt ?? Number.MAX_SAFE_INTEGER)
+        )
 
+    // Hero countdown follows whichever live deal ends first. When it ends,
+    // this rolls over to the next one automatically.
+    const soonestDeal = activeDeals.find((l) => l.dealEndsAt)
     const countdown = useCountdown(soonestDeal?.dealEndsAt)
+    const showTimer = !!countdown && !countdown.expired
 
     return (
         <div className="bg-[#FAF9F6] text-[#12151C]">
@@ -105,46 +107,41 @@ const page = () => {
                             <span className="flex items-center gap-2">
                                 <Truck className="w-4 h-4 text-[#2DD4BF]" /> Delivery included
                             </span>
-                            <span className="flex items-center gap-2">
-                                <BadgeCheck className="w-4 h-4 text-[#2DD4BF]" /> 7-day returns
-                            </span>
                         </div>
                     </div>
 
-                    {/* Countdown panel — now driven by the soonest-expiring real deal */}
+                    {/* Countdown panel — driven by the soonest-ending live deal */}
                     <div className="bg-[#181B23] border border-[#2A2E38] rounded-2xl p-6 sm:p-8">
                         <div className="flex items-center gap-2 text-[#9BA0AB] text-sm mb-6">
                             <Timer className="w-4 h-4 text-amber-500" />
-                            {!countdown
-                                ? 'New deals posted weekly'
-                                : countdown.expired
-                                ? 'This round of deals has closed'
-                                : 'Next deal price change in'}
+                            {showTimer ? 'Next deal price change in' : 'New deals posted weekly'}
                         </div>
 
-                        {countdown ? (
+                        {showTimer ? (
                             <>
                                 <div className="grid grid-cols-4 gap-3">
                                     {TIME_UNITS.map((unit) => (
                                         <div key={unit.key} className="text-center">
                                             <div className="bg-[#12151C] rounded-lg py-4 font-mono text-3xl sm:text-4xl font-semibold tabular-nums">
-                                                {String(countdown[unit.key as keyof typeof countdown]).padStart(2, '0')}
+                                                {String(countdown![unit.key as keyof typeof countdown]).padStart(2, '0')}
                                             </div>
                                             <div className="text-xs text-[#6B7280] mt-2">{unit.label}</div>
                                         </div>
                                     ))}
                                 </div>
                                 <p className="text-xs text-[#6B7280] mt-6 leading-relaxed">
-                                    {countdown.expired
-                                        ? 'New deals get posted every week — check back soon or browse the full catalog.'
-                                        : "When this hits zero, that item returns to standard pricing."}
+                                    When this hits zero,{' '}
+                                    <span className="text-[#9BA0AB] font-medium">{soonestDeal?.name}</span>{' '}
+                                    returns to standard pricing.
                                 </p>
                             </>
                         ) : (
                             <p className="text-sm text-[#9BA0AB] leading-relaxed">
-                                {dealLaptops.length > 0
-                                    ? "Check individual listings below for their deal end times."
-                                    : "No deals are running right now — check back soon."}
+                                {loadingStore
+                                    ? "Loading this week's deals…"
+                                    : activeDeals.length > 0
+                                        ? 'Check individual listings below for their deal end times.'
+                                        : 'No deals are running right now — check back soon.'}
                             </p>
                         )}
                     </div>
@@ -160,14 +157,18 @@ const page = () => {
                                 This week's deals
                             </h2>
                             <p className="text-[#6B7280]">
-                                {dealLaptops.length > 0 && countdown && !countdown.expired
-                                    ? `${dealLaptops.length} laptop${dealLaptops.length === 1 ? '' : 's'} marked down right now`
-                                    : 'Restocking — new deals are added every week'}
+                                {loadingStore
+                                    ? 'Loading…'
+                                    : activeDeals.length > 0
+                                        ? `${activeDeals.length} laptop${activeDeals.length === 1 ? '' : 's'} marked down right now`
+                                        : 'Restocking — new deals are added every week'}
                             </p>
                         </div>
                     </div>
 
-                    {dealLaptops.length === 0 || countdown?.expired ? (
+                    {loadingStore ? (
+                        <LoadingProduct />
+                    ) : activeDeals.length === 0 ? (
                         <div className="border border-dashed border-[#D8D5CC] rounded-2xl py-20 px-4 sm:px-6 text-center">
                             <PackageSearch className="w-10 h-10 text-[#B5B0A3] mx-auto mb-4" />
                             <h3 className="text-xl font-semibold text-[#12151C] mb-2">
@@ -185,7 +186,7 @@ const page = () => {
                         </div>
                     ) : (
                         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {dealLaptops.map((laptop) => (
+                            {activeDeals.map((laptop) => (
                                 <ProductDeal product={laptop} key={laptop.dbID} />
                             ))}
                         </div>
@@ -199,7 +200,7 @@ const page = () => {
                     <h2 className="text-3xl font-bold text-[#12151C] mb-12 max-w-md">
                         Why the deal price is the real price
                     </h2>
-                    <div className="grid md:grid-cols-2 gap-x-12 gap-y-10">
+                    <div className="grid md:grid-cols-3 gap-x-10 gap-y-10">
                         {WHY_SHOP.map(({ icon: Icon, title, description }) => (
                             <div key={title} className="flex gap-4">
                                 <div className="shrink-0 w-11 h-11 rounded-full bg-[#12151C] flex items-center justify-center">

@@ -10,6 +10,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { toast } from "sonner"
 import { ArrowLeft, Lock, ShieldCheck, User, Mail, Phone, MapPin } from "lucide-react"
+import { useEffect } from "react"   // add to your existing React import
+import { useLaptopStore } from "@/store/laptopStore"
 
 declare global {
   interface Window {
@@ -19,7 +21,7 @@ declare global {
 
 const CheckoutPage = () => {
   const router = useRouter()
-  const { items, totalPrice, clearCart, removeItem } = useCartStore()
+  const { items, totalPrice, clearCart, removeItem, syncPrices } = useCartStore()
 
   const [form, setForm] = useState({
     customerName: "",
@@ -51,8 +53,7 @@ const CheckoutPage = () => {
 
       if (verifyData.verified) {
         await markOrderPaid(orderId, reference)
-        await decrementStock(items.map((i) => ({ id: i.id, quantity: i.quantity })))
-        // Fire-and-forget — don't block the customer's success flow on this.
+        await decrementStock(items.map((i) => ({ productId: i.productId, configurationId: i.configurationId, quantity: i.quantity })))        // Fire-and-forget — don't block the customer's success flow on this.
         fetch("/api/notify-order", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -70,7 +71,7 @@ const CheckoutPage = () => {
         clearCart()
         toast.success("Payment successful!")
         // Matches the actual route: src/app/order-confirmation/page.tsx
-        router.push(`/orderConfirmation?orderId=${orderId}`)
+        router.push(`/order-confirmation?orderId=${orderId}`)
       } else {
         await markOrderFailed(orderId)
         toast.error("Payment could not be verified. Contact support.")
@@ -101,11 +102,11 @@ const CheckoutPage = () => {
 
     setProcessing(true)
 
-    const { allInStock, soldOutIds } = await checkProductsInStock(
-      items.map((i) => ({ id: i.id, quantity: i.quantity }))
+    const { allInStock, soldOutCartIds } = await checkProductsInStock(
+      items.map((i) => ({ cartId: i.id, productId: i.productId, configurationId: i.configurationId, quantity: i.quantity }))
     )
     if (!allInStock) {
-      soldOutIds.forEach((id) => removeItem(id))
+      soldOutCartIds.forEach((id) => removeItem(id))
       toast.error("One or more items in your cart no longer have enough stock and were removed. Please review your cart.")
       setProcessing(false)
       return
@@ -126,6 +127,12 @@ const CheckoutPage = () => {
     })
     handler.openIframe()
   }
+
+  const { laptopStoreData, loadingStore } = useLaptopStore()
+
+  useEffect(() => {
+    if (!loadingStore && laptopStoreData.length > 0) syncPrices(laptopStoreData)
+  }, [laptopStoreData, loadingStore, syncPrices])
 
   if (items.length === 0) {
     return (
@@ -207,6 +214,9 @@ const CheckoutPage = () => {
                       />
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-slate-900 truncate">{item.name}</p>
+                        {item.configurationLabel && (
+                          <p className="text-xs text-gray-500">{item.configurationLabel}</p>
+                        )}
                         <p className="text-xs text-gray-400">Qty {item.quantity}</p>
                       </div>
                       <p className="text-sm font-semibold text-slate-900 whitespace-nowrap">

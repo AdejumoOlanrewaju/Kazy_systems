@@ -3,8 +3,6 @@ import React, { useEffect, useMemo, useState } from "react";
 import {
     Package,
     DollarSign,
-    TrendingUp,
-    LayoutDashboard,
     Menu,
     Tag,
     Users,
@@ -19,6 +17,7 @@ import { useSidebarStore } from "@/store/sidebarStore";
 import { useLaptopStore } from "@/store/laptopStore";
 import { getOrders, Order, OrderStatus } from "@/lib/orderService";
 import { getLeads, Lead } from "@/lib/leadService";
+import { getProductStock, getInventoryValue, getConfigurationLabel } from "@/lib/productDisplay";
 
 const STATUS_ORDER: OrderStatus[] = ["pending", "paid", "shipped", "delivered", "failed"];
 const STATUS_BAR_COLOR: Record<OrderStatus, string> = {
@@ -69,15 +68,44 @@ export default function KazyAdminDashboard() {
     const laptops = laptopStoreData;
 
     // ---------- derived analytics (all computed from real data, no placeholders) ----------
-    const inStockCount = useMemo(() => laptops.filter((l) => l.stockQuantity > 0).length, [laptops]);
+
+    // Stock is read through helpers so configured products count their
+    // configurations' stock, not the (unused) flat field.
+    const inStockCount = useMemo(() => laptops.filter((l) => getProductStock(l) > 0).length, [laptops]);
     const outOfStockCount = laptops.length - inStockCount;
-    const lowStock = useMemo(
-        () => laptops.filter((l) => l.stockQuantity > 0 && l.stockQuantity <= 3),
+
+    // Low stock is tracked per sellable unit: each configuration of a configured
+    // product is checked on its own, so "i5 / 8GB: 1 left" isn't hidden by
+    // another configuration that still has plenty.
+    const lowStock = useMemo(() => {
+        const items: { key: string; name: string; detail?: string; stock: number }[] = [];
+        laptops.forEach((l) => {
+            if (l.configurations?.length) {
+                l.configurations.forEach((c) => {
+                    if (c.stockQuantity > 0 && c.stockQuantity <= 3) {
+                        items.push({
+                            key: `${l.dbID}_${c.id}`,
+                            name: l.name,
+                            detail: getConfigurationLabel(c),
+                            stock: c.stockQuantity,
+                        });
+                    }
+                });
+            } else if (l.stockQuantity > 0 && l.stockQuantity <= 3) {
+                items.push({ key: l.dbID, name: l.name, stock: l.stockQuantity });
+            }
+        });
+        return items.sort((a, b) => a.stock - b.stock);
+    }, [laptops]);
+
+    // Same definition of "live deal" as the Deals page: flagged AND not expired.
+    const activeDeals = useMemo(
+        () => laptops.filter((l) => l.isDeal && (!l.dealEndsAt || l.dealEndsAt > Date.now())).length,
         [laptops]
     );
-    const activeDeals = useMemo(() => laptops.filter((l) => l.isDeal).length, [laptops]);
+
     const inventoryValue = useMemo(
-        () => laptops.reduce((sum, l) => sum + l.price * (l.stockQuantity || 0), 0),
+        () => laptops.reduce((sum, l) => sum + getInventoryValue(l), 0),
         [laptops]
     );
 
@@ -142,14 +170,14 @@ export default function KazyAdminDashboard() {
         {
             label: "Products in Stock",
             value: `${inStockCount}/${laptops.length}`,
-            sub: `${outOfStockCount} out of stock`,
+            sub: `${outOfStockCount} out of stock · ₦${inventoryValue.toLocaleString()} inventory`,
             icon: Package,
             warn: outOfStockCount > 0,
         },
         {
             label: "Active Deals",
             value: activeDeals,
-            sub: `₦${inventoryValue.toLocaleString()} inventory value`,
+            sub: activeDeals > 0 ? "Live on the site now" : "None running",
             icon: Tag,
         },
     ];
@@ -158,7 +186,7 @@ export default function KazyAdminDashboard() {
         { href: "/admin/product", icon: Package, label: "Manage Products" },
         { href: "/admin/deals", icon: Tag, label: "Manage Deals" },
         { href: "/admin/leads", icon: Users, label: "View Leads" },
-        { href: "/admin/order", icon: ShoppingBag, label: "View Orders" },
+        { href: "/admin/orders", icon: ShoppingBag, label: "View Orders" },
     ];
 
     const loading = loadingStore || ordersLoading || leadsLoading;
@@ -277,11 +305,16 @@ export default function KazyAdminDashboard() {
                                     <p className="text-sm text-gray-400 py-6 text-center">Nothing low on stock right now</p>
                                 ) : (
                                     <div className="space-y-3">
-                                        {lowStock.slice(0, 5).map((l) => (
-                                            <div key={l.dbID || l.id} className="flex items-center justify-between text-sm">
-                                                <span className="text-gray-700 truncate pr-2">{l.name}</span>
+                                        {lowStock.slice(0, 5).map((item) => (
+                                            <div key={item.key} className="flex items-center justify-between text-sm gap-3">
+                                                <div className="min-w-0">
+                                                    <span className="text-gray-700 truncate block">{item.name}</span>
+                                                    {item.detail && (
+                                                        <span className="text-xs text-gray-400 truncate block">{item.detail}</span>
+                                                    )}
+                                                </div>
                                                 <span className="text-amber-600 font-semibold whitespace-nowrap">
-                                                    {l.stockQuantity} left
+                                                    {item.stock} left
                                                 </span>
                                             </div>
                                         ))}

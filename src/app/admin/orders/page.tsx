@@ -120,6 +120,9 @@ export default function OrdersPage() {
                   {order.items.map((item) => (
                     <div key={item.id} className="flex justify-between text-sm text-gray-600 py-0.5">
                       <span className="text-gray-900">{item.name} × {item.quantity}</span>
+                      {item.configurationLabel && (
+                        <p className="text-xs text-gray-400">{item.configurationLabel}</p>
+                      )}
                       <span className="text-gray-900 font-medium">₦{(item.price * item.quantity).toLocaleString()}</span>
                     </div>
                   ))}

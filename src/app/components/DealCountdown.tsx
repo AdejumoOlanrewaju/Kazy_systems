@@ -2,6 +2,7 @@
 import React from "react"
 import { Clock } from "lucide-react"
 import { useCountdown } from "@/lib/useCountdown"
+import { span } from "framer-motion/client"
 
 const DealCountdown = ({ endsAt }: { endsAt?: number | null }) => {
   const parts = useCountdown(endsAt)
@@ -13,10 +14,13 @@ const DealCountdown = ({ endsAt }: { endsAt?: number | null }) => {
       {parts.expired ? (
         <span>Deal ended</span>
       ) : (
-        <span>
-          {parts.days > 0 && `${parts.days}d `}
-          {String(parts.hours).padStart(2, "0")}:{String(parts.minutes).padStart(2, "0")}:{String(parts.seconds).padStart(2, "0")} left
-        </span>
+        <div>
+          <span>Deal has just</span>
+          <span>
+            {parts.days > 0 && ` ${parts.days}d `}
+            {String(parts.hours).padStart(2, "0")}:{String(parts.minutes).padStart(2, "0")}:{String(parts.seconds).padStart(2, "0")} left
+          </span>
+        </div>
       )}
     </div>
   )

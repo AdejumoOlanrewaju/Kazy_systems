@@ -1,8 +1,7 @@
 import { initializeApp, getApps, cert } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
+import { getFirestore } from "firebase-admin/firestore";
 
-// Initializes once — Next.js can re-run this file across hot reloads/requests,
-// so guard against creating duplicate app instances.
 if (!getApps().length) {
   initializeApp({
     credential: cert({
@@ -14,3 +13,4 @@ if (!getApps().length) {
 }
 
 export const adminAuth = getAuth();
+export const adminDb = getFirestore();

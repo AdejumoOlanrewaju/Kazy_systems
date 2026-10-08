@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { FormState, LaptopType } from '@/lib/types';
 import { addProduct, deleteProduct, deleteProductImage, getProducts, updateProduct } from '@/lib/productDataService';
+import { getProductSummary, getPricing } from '@/lib/productDisplay';
 import { Check, ChevronDown, Edit, Filter, Menu, Plus, Search, Trash2, X } from 'lucide-react';
 import { categories, tags, dealBadges } from '@/lib/data';
 import { uploadToCloudinary } from '@/lib/cloudinary';
@@ -23,7 +24,6 @@ const page = () => {
     price: "",
     oldPrice: "",
     images: [],
-    specs: "",
     rating: "",
     reviews: "",
     stockQuantity: "1",
@@ -35,6 +35,10 @@ const page = () => {
     dealEndsAt: "",
     dealBadge: "",
     discount: "",
+    configurations: [],
+    specSheet: [],
+    condition: "used",
+    conditionNotes: ""
   });
   const [uploading, setUploading] = useState(false);
   const { laptopStoreData, loadingStore } = useLaptopStore()
@@ -62,6 +66,46 @@ const page = () => {
     }
   };
 
+  const handleAddConfiguration = () => {
+    setFormData(prev => ({
+      ...prev,
+      configurations: [
+        ...prev.configurations,
+        { id: `cfg_${Date.now()}`, processor: "", ram: "", storage: "", customLabel: "", price: "", oldPrice: "", stockQuantity: "" }
+      ]
+    }));
+  };
+
+  const handleRemoveConfiguration = (id: string) => {
+    setFormData(prev => ({
+      ...prev,
+      configurations: prev.configurations.filter(c => c.id !== id)
+    }));
+  };
+
+  const handleConfigurationChange = (
+    id: string,
+    field: "processor" | "ram" | "storage" | "customLabel" | "price" | "oldPrice" | "stockQuantity",
+    value: string
+  ) => {
+    setFormData(prev => ({
+      ...prev,
+      configurations: prev.configurations.map(c => c.id === id ? { ...c, [field]: value } : c)
+    }));
+  };
+
+  const handleAddSpec = () => {
+    setFormData(prev => ({ ...prev, specSheet: [...prev.specSheet, { label: "", value: "" }] }));
+  };
+  const handleRemoveSpec = (index: number) => {
+    setFormData(prev => ({ ...prev, specSheet: prev.specSheet.filter((_, i) => i !== index) }));
+  };
+  const handleSpecChange = (index: number, field: "label" | "value", value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      specSheet: prev.specSheet.map((s, i) => i === index ? { ...s, [field]: value } : s)
+    }));
+  };
 
   const deleteImageFunc = (productID: string, img: string, imgIndex: any) => {
     setFormData(prev => ({
@@ -77,11 +121,19 @@ const page = () => {
 
     return laptopStoreData.filter((laptop) => {
       const name = laptop?.name?.toLowerCase() || "";
-      const specs = laptop?.specs?.toLowerCase() || "";
+      const q = searchTerm.toLowerCase();
 
-      const matchesSearch =
-        name.includes(searchTerm.toLowerCase()) ||
-        specs.includes(searchTerm.toLowerCase());
+      const specSheetMatch = (laptop.specSheet || []).some(
+        (s) => s.label.toLowerCase().includes(q) || s.value.toLowerCase().includes(q)
+      );
+      const configMatch = (laptop.configurations || []).some(
+        (c) =>
+          c.processor?.toLowerCase().includes(q) ||
+          c.ram?.toLowerCase().includes(q) ||
+          c.storage?.toLowerCase().includes(q)
+      );
+
+      const matchesSearch = name.includes(q) || specSheetMatch || configMatch;
 
       const matchesCategory =
         filterCategory === "all" || laptop?.category === filterCategory;
@@ -115,21 +167,40 @@ const page = () => {
     }));
   };
 
+  // Live preview of what the discount does, shown under the Discount field.
+  const discountPct = parseFloat(formData.discount) || 0;
+  const previewBases = (
+    formData.configurations.length > 0
+      ? formData.configurations.map((c) => parseFloat(c.price) || 0)
+      : [parseFloat(formData.price) || 0]
+  ).filter((p) => p > 0);
+  const previewBase = previewBases.length ? Math.min(...previewBases) : 0;
+  const previewDealPrice =
+    previewBase > 0 && discountPct > 0 && discountPct < 100
+      ? Math.round(previewBase * (1 - discountPct / 100))
+      : null;
+
   const handleSubmit = async () => {
-    if (!formData.name || !formData.price || !formData.rating || !formData.reviews) {
+    const hasConfigurations = formData.configurations.length > 0;
+
+    if (!formData.name || !formData.rating || !formData.reviews || (!hasConfigurations && !formData.price)) {
       alert("Please fill in all required fields");
       return;
     }
 
-    const laptopData: LaptopType = {
+    if (formData.isDeal && !(discountPct > 0 && discountPct < 100)) {
+      alert("A deal needs a Discount % between 1 and 99 — that is what lowers the price while the deal is live.");
+      return;
+    }
+
+    const baseData = {
       id: editingLaptop ? editingLaptop.id : '',
       dbID: editingLaptop ? editingLaptop.dbID : '',
       name: formData.name,
       category: formData.category,
-      price: parseFloat(formData.price),
-      oldPrice: parseFloat(formData.oldPrice),
+      price: formData.price ? parseFloat(formData.price) : 0,
+      oldPrice: formData.oldPrice ? parseFloat(formData.oldPrice) : 0,
       images: formData.images,
-      specs: formData.specs,
       rating: parseFloat(formData.rating),
       reviews: parseInt(formData.reviews),
       stockQuantity: parseInt(formData.stockQuantity) || 0,
@@ -142,7 +213,30 @@ const page = () => {
       isDeal: formData.isDeal,
       dealEndsAt: formData.isDeal && formData.dealEndsAt ? new Date(formData.dealEndsAt).getTime() : null,
       dealBadge: formData.dealBadge,
-      discount: formData.discount ? parseInt(formData.discount) : 0,
+      discount: formData.isDeal ? discountPct : 0,
+      condition: (formData.condition || "used") as "new" | "used" | "refurbished",
+      conditionNotes: formData.conditionNotes,
+    };
+
+    const laptopData: LaptopType = {
+      ...baseData,
+      ...(hasConfigurations
+        ? {
+          configurations: formData.configurations.map((c) => ({
+            id: c.id,
+            processor: c.processor,
+            ram: c.ram,
+            storage: c.storage,
+            ...(c.customLabel ? { customLabel: c.customLabel } : {}),
+            price: parseFloat(c.price) || 0,
+            ...(c.oldPrice ? { oldPrice: parseFloat(c.oldPrice) } : {}),
+            stockQuantity: parseInt(c.stockQuantity) || 0,
+          })),
+        }
+        : {}),
+      ...(formData.specSheet.length > 0
+        ? { specSheet: formData.specSheet.filter(s => s.label.trim() && s.value.trim()) }
+        : {}),
     };
 
     if (editingLaptop) {
@@ -173,7 +267,6 @@ const page = () => {
       price: "",
       oldPrice: "",
       images: [],
-      specs: "",
       rating: "",
       reviews: "",
       stockQuantity: "1",
@@ -185,6 +278,10 @@ const page = () => {
       dealEndsAt: "",
       dealBadge: "",
       discount: "",
+      configurations: [],
+      specSheet: [],
+      condition: "used",
+      conditionNotes: ""
     });
     setEditingLaptop(null);
     setShowModal(false);
@@ -195,10 +292,9 @@ const page = () => {
     setFormData({
       name: laptop.name,
       category: laptop.category,
-      price: laptop.price.toString(),
-      oldPrice: laptop.oldPrice?.toString() || "",
+      price: laptop.price?.toString() || "",
+      oldPrice: laptop.oldPrice ? laptop.oldPrice.toString() : "",
       images: laptop.images,
-      specs: laptop.specs,
       rating: laptop.rating.toString(),
       reviews: laptop.reviews.toString(),
       stockQuantity: laptop.stockQuantity?.toString() || "0",
@@ -211,7 +307,20 @@ const page = () => {
         ? new Date(laptop.dealEndsAt).toISOString().slice(0, 16)
         : "",
       dealBadge: laptop.dealBadge || "",
-      discount: laptop.discount?.toString() || "",
+      discount: laptop.discount ? laptop.discount.toString() : "",
+      configurations: (laptop.configurations || []).map((c) => ({
+        id: c.id,
+        processor: c.processor,
+        ram: c.ram,
+        storage: c.storage,
+        customLabel: c.customLabel || "",
+        price: c.price.toString(),
+        oldPrice: c.oldPrice?.toString() || "",
+        stockQuantity: c.stockQuantity.toString(),
+      })),
+      specSheet: laptop.specSheet || [],
+      condition: laptop.condition || "used",
+      conditionNotes: laptop.conditionNotes || "",
     });
     setShowModal(true);
   };
@@ -307,92 +416,104 @@ const page = () => {
             ) : filteredLaptops.length === 0 ? (
               <div className="text-center text-gray-500 py-10 col-span-full">No laptops found.</div>
             ) : (
-              filteredLaptops.map((laptop, index) => (
-                <div
-                  key={index}
-                  className="bg-white rounded-2xl border border-gray-200 overflow-hidden hover:shadow-md transition-all duration-300 group"
-                >
-                  <div className="relative h-52 overflow-hidden bg-gray-100">
-                    <img
-                      src={laptop.images?.[0]}
-                      alt={laptop.name}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                    />
-                    {laptop.isDeal && (
-                      <span className="absolute top-4 left-4 bg-amber-500 text-neutral-950 text-xs font-bold px-3 py-1.5 rounded-lg shadow">
-                        {laptop.dealBadge}
-                      </span>
-                    )}
-                    <span className="absolute top-4 right-4 bg-white/70 backdrop-blur-md text-gray-700 text-xs font-semibold px-3 py-1.5 rounded-lg border border-gray-300">
-                      {laptop.tag}
-                    </span>
-                    <div
-                      className={`absolute bottom-4 left-4 px-3 py-1.5 rounded-lg text-xs font-semibold ${laptop.stockQuantity > 0
-                        ? "bg-emerald-100 text-emerald-700 border border-emerald-200"
-                        : "bg-red-100 text-red-700 border border-red-200"
-                        }`}
-                    >
-                      {laptop.stockQuantity > 0 ? `${laptop.stockQuantity} in stock` : "Out of Stock"}
-                    </div>
-                  </div>
+              filteredLaptops.map((laptop, index) => {
+                const hasConfigurations = (laptop.configurations?.length ?? 0) > 0;
+                const configStock = hasConfigurations
+                  ? laptop.configurations!.reduce((sum, c) => sum + c.stockQuantity, 0)
+                  : laptop.stockQuantity;
+                const pricing = getPricing(laptop);
 
-                  <div className="p-5">
-                    <h3 className="font-bold text-gray-900 text-lg mb-2 line-clamp-1">
-                      {laptop.name}
-                    </h3>
-                    <p className="text-sm text-gray-500 mb-4 line-clamp-1">
-                      {laptop.specs}
-                    </p>
-
-                    <div className="flex items-baseline gap-2 mb-4">
-                      <span className="text-2xl font-bold text-gray-900">
-                        ₦{laptop.price.toLocaleString()}
-                      </span>
-                      {laptop.oldPrice && (
-                        <>
-                          <span className="text-sm text-gray-400 line-through">
-                            ₦{laptop.oldPrice.toLocaleString()}
-                          </span>
-                          {laptop.discount! > 0 && (
-                            <span className="text-xs font-bold text-emerald-700 bg-emerald-100 px-2 py-1 rounded-md border border-emerald-200">
-                              -{laptop.discount}%
-                            </span>
-                          )}
-                        </>
+                return (
+                  <div
+                    key={laptop.dbID || index}
+                    className="bg-white rounded-2xl border border-gray-200 overflow-hidden hover:shadow-md transition-all duration-300 group"
+                  >
+                    <div className="relative h-52 overflow-hidden bg-gray-100">
+                      <img
+                        src={laptop.images?.[0]}
+                        alt={laptop.name}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      />
+                      {laptop.isDeal && (
+                        <span className="absolute top-4 left-4 bg-amber-500 text-neutral-950 text-xs font-bold px-3 py-1.5 rounded-lg shadow">
+                          {laptop.dealBadge || "Deal"}
+                        </span>
                       )}
+                      <span className="absolute top-4 right-4 bg-white/70 backdrop-blur-md text-gray-700 text-xs font-semibold px-3 py-1.5 rounded-lg border border-gray-300">
+                        {laptop.tag}
+                      </span>
+                      <div
+                        className={`absolute bottom-4 left-4 px-3 py-1.5 rounded-lg text-xs font-semibold ${configStock > 0
+                          ? "bg-emerald-100 text-emerald-700 border border-emerald-200"
+                          : "bg-red-100 text-red-700 border border-red-200"
+                          }`}
+                      >
+                        {configStock > 0 ? `${configStock} in stock` : "Out of Stock"}
+                      </div>
+                      <span className="absolute bottom-4 right-4 bg-neutral-950/80 text-white text-xs font-semibold px-3 py-1.5 rounded-lg capitalize">
+                        {laptop.condition || "used"}
+                      </span>
                     </div>
 
-                    <div className="flex items-center gap-2 mb-5 pb-5 border-b border-gray-200">
-                      <div className="flex items-center gap-1">
-                        <span className="text-amber-400">★</span>
-                        <span className="font-semibold text-gray-800 text-sm">
-                          {laptop.rating}
+                    <div className="p-5">
+                      <h3 className="font-bold text-gray-900 text-lg mb-2 line-clamp-1">
+                        {laptop.name}
+                      </h3>
+                      <p className="text-sm text-gray-500 mb-4 line-clamp-1">
+                        {getProductSummary(laptop)}
+                      </p>
+
+                      <div className="flex items-baseline gap-2 mb-4">
+                        <span className="text-2xl font-bold text-gray-900">
+                          {pricing.isFrom && (
+                            <span className="text-sm font-medium text-gray-500 mr-1">From</span>
+                          )}
+                          ₦{pricing.price.toLocaleString()}
+                        </span>
+                        {pricing.oldPrice && (
+                          <>
+                            <span className="text-sm text-gray-400 line-through">
+                              ₦{pricing.oldPrice.toLocaleString()}
+                            </span>
+                            <span className="text-xs font-bold text-emerald-700 bg-emerald-100 px-2 py-1 rounded-md border border-emerald-200">
+                              -{pricing.percent}%
+                            </span>
+                          </>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-2 mb-5 pb-5 border-b border-gray-200">
+                        <div className="flex items-center gap-1">
+                          <span className="text-amber-400">★</span>
+                          <span className="font-semibold text-gray-800 text-sm">
+                            {laptop.rating}
+                          </span>
+                        </div>
+                        <span className="text-gray-300">•</span>
+                        <span className="text-sm text-gray-500">
+                          {laptop.reviews} reviews
                         </span>
                       </div>
-                      <span className="text-gray-300">•</span>
-                      <span className="text-sm text-gray-500">
-                        {laptop.reviews} reviews
-                      </span>
-                    </div>
 
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => handleEdit(laptop)}
-                        className="flex-1 flex items-center justify-center gap-2 bg-neutral-950 text-white px-4 py-2.5 rounded-xl hover:bg-neutral-800 transition-colors font-semibold text-sm"
-                      >
-                        <Edit size={16} />
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => handleDelete(laptop.dbID!)}
-                        className="flex items-center justify-center gap-2 bg-red-50 text-red-600 px-4 py-2.5 rounded-xl hover:bg-red-100 transition-colors border border-red-200"
-                      >
-                        <Trash2 size={16} />
-                      </button>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleEdit(laptop)}
+                          className="flex-1 flex items-center justify-center gap-2 bg-neutral-950 text-white px-4 py-2.5 rounded-xl hover:bg-neutral-800 transition-colors font-semibold text-sm"
+                        >
+                          <Edit size={16} />
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleDelete(laptop.dbID!)}
+                          className="flex items-center justify-center gap-2 bg-red-50 text-red-600 px-4 py-2.5 rounded-xl hover:bg-red-100 transition-colors border border-red-200"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         </div>
@@ -473,7 +594,38 @@ const page = () => {
 
                 <div>
                   <label className="block text-sm font-semibold text-white mb-2">
-                    Price (₦) <span className="text-amber-400">*</span>
+                    Condition <span className="text-amber-400">*</span>
+                  </label>
+                  <div className="relative">
+                    <select
+                      name="condition"
+                      value={formData.condition}
+                      onChange={handleInputChange}
+                      className={`${inputClass} appearance-none cursor-pointer`}
+                    >
+                      <option value="new">New</option>
+                      <option value="used">Used</option>
+                      <option value="refurbished">Refurbished</option>
+                    </select>
+                    <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-neutral-500 pointer-events-none" size={18} />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-white mb-2">Condition Notes</label>
+                  <input
+                    type="text"
+                    name="conditionNotes"
+                    value={formData.conditionNotes}
+                    onChange={handleInputChange}
+                    placeholder="e.g. Minor scuff on lid, battery health 92%"
+                    className={inputClass}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-white mb-2">
+                    Price (₦) {formData.configurations.length === 0 && <span className="text-amber-400">*</span>}
                   </label>
                   <input
                     type="number"
@@ -481,9 +633,15 @@ const page = () => {
                     value={formData.price}
                     onChange={handleInputChange}
                     step="0.01"
-                    placeholder="0.00"
-                    className={inputClass}
+                    placeholder={formData.configurations.length > 0 ? "Not used — configurations set the price" : "0.00"}
+                    disabled={formData.configurations.length > 0}
+                    className={`${inputClass} disabled:opacity-40 disabled:cursor-not-allowed`}
                   />
+                  {formData.isDeal && (
+                    <p className="text-xs text-amber-500 mt-1.5">
+                      Enter the regular price — the deal discount is applied to it automatically.
+                    </p>
+                  )}
                 </div>
 
                 <div>
@@ -494,9 +652,15 @@ const page = () => {
                     value={formData.oldPrice}
                     onChange={handleInputChange}
                     step="0.01"
-                    placeholder="0.00"
-                    className={inputClass}
+                    placeholder={formData.configurations.length > 0 ? "Not used — configurations set the price" : "0.00"}
+                    disabled={formData.configurations.length > 0}
+                    className={`${inputClass} disabled:opacity-40 disabled:cursor-not-allowed`}
                   />
+                  <p className="text-xs text-neutral-500 mt-1.5">
+                    {formData.isDeal && discountPct > 0
+                      ? "Ignored while this is a deal — the discount sets the struck-through price."
+                      : "Optional permanent \"was\" price. For limited-time offers, use Is Deal + Discount % instead."}
+                  </p>
                 </div>
 
                 <div>
@@ -576,20 +740,6 @@ const page = () => {
                 </div>
 
                 <div className="md:col-span-2">
-                  <label className="block text-sm font-semibold text-white mb-2">
-                    Specs <span className="text-amber-400">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    name="specs"
-                    value={formData.specs}
-                    onChange={handleInputChange}
-                    placeholder="e.g., Intel i7, 16GB RAM, 512GB SSD"
-                    className={inputClass}
-                  />
-                </div>
-
-                <div className="md:col-span-2">
                   <label className="block text-sm font-semibold text-white mb-2">Description</label>
                   <textarea
                     name="description"
@@ -629,15 +779,18 @@ const page = () => {
 
                 <div className="md:col-span-2 flex items-center gap-8 pt-2">
                   <div>
-                    <label className="block text-sm font-semibold text-white mb-2">Stock Quantity *</label>
+                    <label className="block text-sm font-semibold text-white mb-2">
+                      Stock Quantity {formData.configurations.length === 0 && <span className="text-amber-400">*</span>}
+                    </label>
                     <input
                       type="number"
                       name="stockQuantity"
                       min="0"
                       value={formData.stockQuantity}
                       onChange={handleInputChange}
-                      placeholder="e.g., 5"
-                      className={inputClass}
+                      placeholder={formData.configurations.length > 0 ? "Not used — configurations set the stock" : "e.g., 5"}
+                      disabled={formData.configurations.length > 0}
+                      className={`${inputClass} disabled:opacity-40 disabled:cursor-not-allowed`}
                     />
                   </div>
 
@@ -656,6 +809,89 @@ const page = () => {
                     </div>
                     <span className="text-sm font-semibold text-white group-hover:text-neutral-300 transition-colors">Is Deal</span>
                   </label>
+                </div>
+
+                <div className="md:col-span-2 space-y-3 border-t border-neutral-800 pt-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <label className="block text-sm font-semibold text-white">Configurations (optional)</label>
+                      <p className="text-xs text-neutral-500 mt-1">
+                        Add these only if this listing has multiple spec variants (e.g. different RAM/storage combos), each with its own price and stock. Leave empty for a simple single-price product.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleAddConfiguration}
+                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold rounded-lg"
+                    >
+                      + Add Configuration
+                    </button>
+                  </div>
+
+                  {formData.configurations.map((config) => (
+                    <div key={config.id} className="bg-black border border-neutral-800 rounded-xl p-3 space-y-2">
+                      <div className="grid grid-cols-12 gap-2">
+                        <input
+                          type="text"
+                          placeholder="Processor (e.g. Intel Core i5-8350U)"
+                          value={config.processor}
+                          onChange={(e) => handleConfigurationChange(config.id, "processor", e.target.value)}
+                          className="col-span-12 sm:col-span-4 px-3 py-2 bg-neutral-900 border border-neutral-800 rounded-lg text-white text-sm placeholder:text-neutral-600 focus:border-neutral-600 focus:outline-none"
+                        />
+                        <input
+                          type="text"
+                          placeholder="RAM (e.g. 8GB)"
+                          value={config.ram}
+                          onChange={(e) => handleConfigurationChange(config.id, "ram", e.target.value)}
+                          className="col-span-6 sm:col-span-4 px-3 py-2 bg-neutral-900 border border-neutral-800 rounded-lg text-white text-sm placeholder:text-neutral-600 focus:border-neutral-600 focus:outline-none"
+                        />
+                        <input
+                          type="text"
+                          placeholder="Storage (e.g. 256GB SSD)"
+                          value={config.storage}
+                          onChange={(e) => handleConfigurationChange(config.id, "storage", e.target.value)}
+                          className="col-span-6 sm:col-span-4 px-3 py-2 bg-neutral-900 border border-neutral-800 rounded-lg text-white text-sm placeholder:text-neutral-600 focus:border-neutral-600 focus:outline-none"
+                        />
+                      </div>
+                      <input
+                        type="text"
+                        placeholder="Custom label (optional — overrides the auto-generated one above, e.g. for a special edition)"
+                        value={config.customLabel}
+                        onChange={(e) => handleConfigurationChange(config.id, "customLabel", e.target.value)}
+                        className="w-full px-3 py-2 bg-neutral-900 border border-neutral-800 rounded-lg text-white text-sm placeholder:text-neutral-600 focus:border-neutral-600 focus:outline-none"
+                      />
+                      <div className="grid grid-cols-12 gap-2 items-center">
+                        <input
+                          type="number"
+                          placeholder="Price (₦)"
+                          value={config.price}
+                          onChange={(e) => handleConfigurationChange(config.id, "price", e.target.value)}
+                          className="col-span-4 px-3 py-2 bg-neutral-900 border border-neutral-800 rounded-lg text-white text-sm placeholder:text-neutral-600 focus:border-neutral-600 focus:outline-none"
+                        />
+                        <input
+                          type="number"
+                          placeholder="Old price"
+                          value={config.oldPrice}
+                          onChange={(e) => handleConfigurationChange(config.id, "oldPrice", e.target.value)}
+                          className="col-span-4 px-3 py-2 bg-neutral-900 border border-neutral-800 rounded-lg text-white text-sm placeholder:text-neutral-600 focus:border-neutral-600 focus:outline-none"
+                        />
+                        <input
+                          type="number"
+                          placeholder="Stock"
+                          value={config.stockQuantity}
+                          onChange={(e) => handleConfigurationChange(config.id, "stockQuantity", e.target.value)}
+                          className="col-span-3 px-3 py-2 bg-neutral-900 border border-neutral-800 rounded-lg text-white text-sm placeholder:text-neutral-600 focus:border-neutral-600 focus:outline-none"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveConfiguration(config.id)}
+                          className="col-span-1 flex items-center justify-center py-2 text-red-500 hover:text-red-400"
+                        >
+                          <X size={18} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
 
                 {formData.isDeal && (
@@ -679,17 +915,29 @@ const page = () => {
                     </div>
 
                     <div>
-                      <label className="block text-sm font-semibold text-white mb-2">Discount (%)</label>
+                      <label className="block text-sm font-semibold text-white mb-2">
+                        Discount (%) <span className="text-amber-400">*</span>
+                      </label>
                       <input
                         type="number"
                         name="discount"
                         value={formData.discount}
                         onChange={handleInputChange}
-                        min="0"
-                        max="100"
-                        placeholder="0"
+                        min="1"
+                        max="99"
+                        placeholder="e.g. 10"
                         className={inputClass}
                       />
+                      <p className="text-xs text-neutral-500 mt-1.5">
+                        Taken off the price automatically while the deal is live. When the deal ends, the price goes back to normal.
+                      </p>
+                      {previewDealPrice !== null && (
+                        <p className="text-xs text-emerald-400 mt-1.5">
+                          {formData.configurations.length > 0 ? "Cheapest configuration becomes " : "Customers will pay "}
+                          ₦{previewDealPrice.toLocaleString()}{" "}
+                          <span className="text-neutral-500 line-through">₦{previewBase.toLocaleString()}</span>
+                        </p>
+                      )}
                     </div>
                   </>
                 )}
@@ -706,6 +954,49 @@ const page = () => {
                     />
                   </div>
                 )}
+
+                <div className="md:col-span-2 space-y-3 border-t border-neutral-800 pt-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <label className="block text-sm font-semibold text-white">Specifications (optional)</label>
+                      <p className="text-xs text-neutral-500 mt-1">
+                        Shared specs that apply no matter which configuration is chosen — e.g. Display, Battery, Ports, Webcam, OS, Weight.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleAddSpec}
+                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold rounded-lg"
+                    >
+                      + Add Spec
+                    </button>
+                  </div>
+                  {formData.specSheet.map((spec, i) => (
+                    <div key={i} className="grid grid-cols-12 gap-2">
+                      <input
+                        type="text"
+                        placeholder="Label (e.g. Display)"
+                        value={spec.label}
+                        onChange={(e) => handleSpecChange(i, "label", e.target.value)}
+                        className="col-span-5 px-3 py-2 bg-neutral-900 border border-neutral-800 rounded-lg text-white text-sm placeholder:text-neutral-600 focus:border-neutral-600 focus:outline-none"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Value (e.g. 15.6&quot; FHD 1920x1080)"
+                        value={spec.value}
+                        onChange={(e) => handleSpecChange(i, "value", e.target.value)}
+                        className="col-span-6 px-3 py-2 bg-neutral-900 border border-neutral-800 rounded-lg text-white text-sm placeholder:text-neutral-600 focus:border-neutral-600 focus:outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveSpec(i)}
+                        className="col-span-1 flex items-center justify-center text-red-500 hover:text-red-400"
+                      >
+                        <X size={18} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
 

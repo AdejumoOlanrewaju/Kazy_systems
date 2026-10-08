@@ -1,6 +1,7 @@
 import { addDoc, collection, serverTimestamp, onSnapshot, orderBy, query, doc, updateDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { CartItem } from "@/store/cartStore";
+import { where } from "firebase/firestore";
 
 export type OrderStatus = "pending" | "paid" | "failed" | "shipped" | "delivered";
 
@@ -51,6 +52,19 @@ export const updateOrderStatus = async (orderId: string, status: OrderStatus) =>
 
 export const getOrders = (callback: (orders: Order[]) => void) => {
   const q = query(collection(db, "orders"), orderBy("createdAt", "desc"));
+  return onSnapshot(q, (snapshot) => {
+    const orders = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as Order));
+    callback(orders);
+  });
+};
+
+// Live-subscribes to orders belonging to one customer email — used by "My Orders".
+export const getOrdersByEmail = (email: string, callback: (orders: Order[]) => void) => {
+  const q = query(
+    collection(db, "orders"),
+    where("email", "==", email),
+    orderBy("createdAt", "desc")
+  );
   return onSnapshot(q, (snapshot) => {
     const orders = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as Order));
     callback(orders);

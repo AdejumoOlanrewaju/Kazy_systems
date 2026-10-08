@@ -27,7 +27,7 @@ const SidebarAdmin = () => {
         { icon: Package, label: 'Products', badge: laptopStoreData.length, link: "/admin/product" },
         { icon: ShoppingBag, label: 'Deals', link: "/admin/deals" },
         { icon: User, label: 'Leads', link: "/admin/leads" },
-        { icon: ShoppingBag, label: 'Orders', link: "/admin/order" },
+        { icon: ShoppingBag, label: 'Orders', link: "/admin/orders" },
     ];
 
     const handleLogout = async () => {

@@ -1,16 +1,21 @@
 "use client"
 
 import { Button } from '@/components/ui/button';
-import { Laptop, Menu, ShoppingCart, X } from 'lucide-react'
+import { Laptop, Menu, Package, ShoppingCart, User, X, LogOut } from 'lucide-react'
 import Link from 'next/link';
 import React, { useEffect, useState } from 'react'
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useCartStore } from '@/store/cartStore';
+import { useCustomerAuth } from '@/lib/useCustomerAuth';
+import { signOutCustomer } from '@/lib/customerAuth';
 
 const Navbar = () => {
+    const router = useRouter();
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+    const [accountMenuOpen, setAccountMenuOpen] = useState(false);
     const totalItems = useCartStore((state) => state.totalItems());
     const [mounted, setMounted] = useState(false);
+    const { user, loading: authLoading } = useCustomerAuth();
 
     const pathname = usePathname();
 
@@ -24,6 +29,14 @@ const Navbar = () => {
     ];
 
     const isActive = (href: string) => pathname === href;
+
+    const handleSignOut = async () => {
+        await signOutCustomer();
+        setAccountMenuOpen(false);
+        router.push("/");
+    };
+
+    const initial = (user?.displayName?.[0] || user?.email?.[0] || "?").toUpperCase();
 
     return (
         <nav className="sticky top-0 z-50 bg-white shadow-md">
@@ -95,6 +108,50 @@ const Navbar = () => {
                             </Button>
                         </Link>
 
+                        {/* Account — only render once auth state is known, avoids a flash */}
+                        {mounted && !authLoading && (
+                            user ? (
+                                <div className="relative">
+                                    <button
+                                        onClick={() => setAccountMenuOpen(!accountMenuOpen)}
+                                        className="w-7 h-7 rounded-full bg-slate-900 text-white flex items-center justify-center font-semibold text-[12px] hover:bg-slate-800 transition-colors"
+                                    >
+                                        {initial}
+                                    </button>
+
+                                    {accountMenuOpen && (
+                                        <>
+                                            <div className="fixed inset-0 z-10" onClick={() => setAccountMenuOpen(false)} />
+                                            <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-xl shadow-lg py-1 z-20">
+                                                <p className="px-4 py-2 text-xs text-gray-400 truncate border-b border-gray-100">{user.email}</p>
+                                                <Link
+                                                    href="/my-orders"
+                                                    onClick={() => setAccountMenuOpen(false)}
+                                                    className="flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50"
+                                                >
+                                                    <Package className="w-4 h-4" />
+                                                    My Orders
+                                                </Link>
+                                                <button
+                                                    onClick={handleSignOut}
+                                                    className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50"
+                                                >
+                                                    <LogOut className="w-4 h-4" />
+                                                    Sign Out
+                                                </button>
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+                            ) : (
+                                <Link href="/sign-in">
+                                    <Button variant="ghost" size="icon">
+                                        <User className="w-5 h-5" />
+                                    </Button>
+                                </Link>
+                            )
+                        )}
+
                         {/* Mobile menu button */}
                         <button
                             className="md:hidden p-2"
@@ -141,6 +198,34 @@ const Navbar = () => {
                                 {link.name}
                             </Link>
                         ))}
+
+                        {mounted && !authLoading && (
+                            user ? (
+                                <>
+                                    <Link
+                                        href="/my-orders"
+                                        onClick={() => setMobileMenuOpen(false)}
+                                        className="block py-2 font-medium text-gray-700 hover:text-slate-900 w-fit"
+                                    >
+                                        My Orders
+                                    </Link>
+                                    <button
+                                        onClick={() => { setMobileMenuOpen(false); handleSignOut(); }}
+                                        className="block py-2 font-medium text-red-600 w-fit"
+                                    >
+                                        Sign Out
+                                    </button>
+                                </>
+                            ) : (
+                                <Link
+                                    href="/sign-in"
+                                    onClick={() => setMobileMenuOpen(false)}
+                                    className="block py-2 font-medium text-gray-700 hover:text-slate-900 w-fit"
+                                >
+                                    Sign In
+                                </Link>
+                            )
+                        )}
                     </div>
                 )}
             </div>

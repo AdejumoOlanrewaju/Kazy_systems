@@ -11,7 +11,10 @@ export async function POST(req: NextRequest) {
     const { orderId, customerName, phone, email, address, items, total } = await req.json();
 
     const itemsList = items
-      .map((i: any) => `- ${i.name} × ${i.quantity} — ₦${(i.price * i.quantity).toLocaleString()}`)
+      .map((i: any) => {
+        const configPart = i.configurationLabel ? ` (${i.configurationLabel})` : "";
+        return `- ${i.name}${configPart} × ${i.quantity} — ₦${(i.price * i.quantity).toLocaleString()}`;
+      })
       .join("\n");
 
     await resend.emails.send({
@@ -31,7 +34,7 @@ ${itemsList}
 
 Total: ₦${total.toLocaleString()}
 
-View in admin: https://kazy-systems.vercel.app/admin/order`,
+View in admin: https://kazy-systems.vercel.app/admin/orders`,
     });
 
     return NextResponse.json({ sent: true });

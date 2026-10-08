@@ -1,9 +1,13 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { LaptopType } from "@/lib/types";
+import { LaptopType, ProductConfiguration } from "@/lib/types";
+import { getConfigurationLabel, getEffectivePrice } from "@/lib/productDisplay";
 
 export type CartItem = {
-  id: string;
+  id: string;               // unique cart line id: dbID, or `${dbID}_${configId}`
+  productId: string;        // always the real product dbID — used for stock lookups
+  configurationId?: string;
+  configurationLabel?: string;
   name: string;
   price: number;
   image: string;
@@ -13,9 +17,10 @@ export type CartItem = {
 
 type CartStore = {
   items: CartItem[];
-  addItem: (product: LaptopType) => void;
+  addItem: (product: LaptopType, configuration?: ProductConfiguration) => void;
   removeItem: (id: string) => void;
   updateQuantity: (id: string, quantity: number) => void;
+  syncPrices: (products: LaptopType[]) => void;
   clearCart: () => void;
   totalItems: () => number;
   totalPrice: () => number;
@@ -26,27 +31,34 @@ export const useCartStore = create<CartStore>()(
     (set, get) => ({
       items: [],
 
-      addItem: (product) => {
-        const existing = get().items.find((i) => i.id === product.dbID);
+      addItem: (product, configuration) => {
+        const cartId = configuration ? `${product.dbID}_${configuration.id}` : product.dbID;
+        const price = getEffectivePrice(product, configuration).price;
+        const stockQuantity = configuration ? configuration.stockQuantity : product.stockQuantity;
+
+        const existing = get().items.find((i) => i.id === cartId);
         if (existing) {
-          if (existing.quantity >= product.stockQuantity) return;
+          if (existing.quantity >= stockQuantity) return;
           set({
             items: get().items.map((i) =>
-              i.id === product.dbID ? { ...i, quantity: i.quantity + 1 } : i
+              i.id === cartId ? { ...i, quantity: i.quantity + 1 } : i
             ),
           });
         } else {
-          if (product.stockQuantity < 1) return;
+          if (stockQuantity < 1) return;
           set({
             items: [
               ...get().items,
               {
-                id: product.dbID!,
+                id: cartId,
+                productId: product.dbID,
+                configurationId: configuration?.id,
+                configurationLabel: configuration ? getConfigurationLabel(configuration) : undefined,
                 name: product.name,
-                price: product.price,
+                price,
                 image: product.images?.[0] || "",
                 quantity: 1,
-                stockQuantity: product.stockQuantity,
+                stockQuantity,
               },
             ],
           });
@@ -64,6 +76,28 @@ export const useCartStore = create<CartStore>()(
         set({
           items: get().items.map((i) => (i.id === id ? { ...i, quantity } : i)),
         });
+      },
+
+      // Re-prices every cart line from the current product data, so a deal that
+      // started or ended since the item was added is reflected. Lines whose
+      // product or configuration no longer exists are dropped.
+      syncPrices: (products) => {
+        const synced: CartItem[] = [];
+        for (const item of get().items) {
+          const product = products.find((p) => p.dbID === item.productId);
+          if (!product) continue;
+          const config = item.configurationId
+            ? product.configurations?.find((c) => c.id === item.configurationId)
+            : undefined;
+          if (item.configurationId && !config) continue;
+
+          synced.push({
+            ...item,
+            price: getEffectivePrice(product, config).price,
+            stockQuantity: config ? config.stockQuantity : product.stockQuantity,
+          });
+        }
+        set({ items: synced });
       },
 
       clearCart: () => set({ items: [] }),
