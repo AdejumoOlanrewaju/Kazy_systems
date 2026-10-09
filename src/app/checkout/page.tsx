@@ -1,17 +1,14 @@
 "use client"
-import React, { useState } from "react"
+import React, { useEffect, useRef, useState } from "react"
 import Script from "next/script"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useCartStore } from "@/store/cartStore"
-import { createOrder, markOrderPaid, markOrderFailed } from "@/lib/orderService"
-import { checkProductsInStock, decrementStock } from "@/lib/productDataService"
+import { useLaptopStore } from "@/store/laptopStore"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { toast } from "sonner"
-import { ArrowLeft, Lock, ShieldCheck, User, Mail, Phone, MapPin } from "lucide-react"
-import { useEffect } from "react"   // add to your existing React import
-import { useLaptopStore } from "@/store/laptopStore"
+import { ArrowLeft, Lock, ShieldCheck, User, MapPin } from "lucide-react"
 
 declare global {
   interface Window {
@@ -21,65 +18,42 @@ declare global {
 
 const CheckoutPage = () => {
   const router = useRouter()
-  const { items, totalPrice, clearCart, removeItem, syncPrices } = useCartStore()
+  const { items, totalPrice, clearCart, syncPrices } = useCartStore()
+  const { laptopStoreData, loadingStore } = useLaptopStore()
 
-  const [form, setForm] = useState({
-    customerName: "",
-    email: "",
-    phone: "",
-    address: "",
-  })
+  const [form, setForm] = useState({ customerName: "", email: "", phone: "", address: "" })
   const [processing, setProcessing] = useState(false)
+  const paidRef = useRef(false) // Paystack fires onClose after a successful payment too
+
+  // Re-price the cart from live product data (deals may have started/ended).
+  useEffect(() => {
+    if (!loadingStore && laptopStoreData.length > 0) syncPrices(laptopStoreData)
+  }, [laptopStoreData, loadingStore, syncPrices])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
     setForm((prev) => ({ ...prev, [name]: value }))
   }
 
-  const handlePaymentResult = async (reference: string) => {
+  // Runs after Paystack reports success. The server re-verifies everything
+  // with Paystack; the browser's word is never trusted.
+  const finishPayment = async (orderId: string, reference: string) => {
     try {
-      const orderId = await createOrder({
-        items,
-        total: totalPrice(),
-        ...form,
-      })
-
-      const verifyRes = await fetch("/api/paystack/verify", {
+      const res = await fetch("/api/checkout/complete", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reference }),
+        body: JSON.stringify({ orderId, reference }),
       })
-      const verifyData = await verifyRes.json()
+      if (!res.ok) throw new Error("not confirmed")
 
-      if (verifyData.verified) {
-        await markOrderPaid(orderId, reference)
-        await decrementStock(items.map((i) => ({ productId: i.productId, configurationId: i.configurationId, quantity: i.quantity })))        // Fire-and-forget — don't block the customer's success flow on this.
-        fetch("/api/notify-order", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            orderId,
-            customerName: form.customerName,
-            phone: form.phone,
-            email: form.email,
-            address: form.address,
-            items,
-            total: totalPrice(),
-          }),
-        }).catch((err) => console.error("Notification request failed:", err))
-
-        clearCart()
-        toast.success("Payment successful!")
-        // Matches the actual route: src/app/order-confirmation/page.tsx
-        router.push(`/order-confirmation?orderId=${orderId}`)
-      } else {
-        await markOrderFailed(orderId)
-        toast.error("Payment could not be verified. Contact support.")
-      }
-    } catch (err) {
-      console.error("Checkout error:", err)
-      toast.error("Something went wrong. Please contact support.")
-    } finally {
+      clearCart()
+      toast.success("Payment successful!")
+      router.push(`/orderConfirmation?orderId=${orderId}`)
+    } catch {
+      toast.error(
+        `We received your payment (ref: ${reference}) but couldn't confirm your order yet. Please don't pay again — contact us with this reference.`,
+        { duration: 15000 }
+      )
       setProcessing(false)
     }
   }
@@ -101,38 +75,59 @@ const CheckoutPage = () => {
     }
 
     setProcessing(true)
+    paidRef.current = false
 
-    const { allInStock, soldOutCartIds } = await checkProductsInStock(
-      items.map((i) => ({ cartId: i.id, productId: i.productId, configurationId: i.configurationId, quantity: i.quantity }))
-    )
-    if (!allInStock) {
-      soldOutCartIds.forEach((id) => removeItem(id))
-      toast.error("One or more items in your cart no longer have enough stock and were removed. Please review your cart.")
+    // The server prices the cart, checks stock, and creates the order.
+    let init: { orderId: string; reference: string; amountKobo: number; email: string }
+    try {
+      const res = await fetch("/api/checkout/init", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          items: items.map((i) => ({
+            productId: i.productId,
+            configurationId: i.configurationId,
+            quantity: i.quantity,
+          })),
+          customer: form,
+          expectedTotal: totalPrice(),
+        }),
+      })
+      const data = await res.json()
+
+      if (!res.ok) {
+        if (data.code === "PRICE_CHANGED" || data.code === "UNAVAILABLE" || data.code === "NO_STOCK") {
+          syncPrices(laptopStoreData)
+        }
+        toast.error(data.error || "Couldn't start checkout.")
+        setProcessing(false)
+        return
+      }
+      init = data
+    } catch {
+      toast.error("Network problem. Please try again.")
       setProcessing(false)
       return
     }
 
     const handler = window.PaystackPop.setup({
       key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY,
-      email: form.email,
-      amount: totalPrice() * 100,
-      ref: `kazy_${Date.now()}`,
+      email: init.email,
+      amount: init.amountKobo,
+      currency: "NGN",
+      ref: init.reference,
       callback: (response: any) => {
-        handlePaymentResult(response.reference)
+        paidRef.current = true
+        finishPayment(init.orderId, response.reference)
       },
       onClose: () => {
+        if (paidRef.current) return
         setProcessing(false)
         toast.info("Payment cancelled.")
       },
     })
     handler.openIframe()
   }
-
-  const { laptopStoreData, loadingStore } = useLaptopStore()
-
-  useEffect(() => {
-    if (!loadingStore && laptopStoreData.length > 0) syncPrices(laptopStoreData)
-  }, [laptopStoreData, loadingStore, syncPrices])
 
   if (items.length === 0) {
     return (
@@ -154,7 +149,6 @@ const CheckoutPage = () => {
           <h1 className="text-3xl font-bold text-slate-900 mb-8">Checkout</h1>
 
           <div className="grid lg:grid-cols-3 gap-8 items-start">
-            {/* Form */}
             <form onSubmit={handleCheckout} className="lg:col-span-2 space-y-6">
               <div className="bg-white border border-gray-200 rounded-2xl p-6 space-y-5">
                 <h2 className="font-bold text-slate-900 flex items-center gap-2">
@@ -188,7 +182,6 @@ const CheckoutPage = () => {
                 </div>
               </div>
 
-              {/* Mobile-only pay button (desktop uses the one in the summary) */}
               <Button
                 type="submit"
                 disabled={processing}
@@ -199,7 +192,6 @@ const CheckoutPage = () => {
               </Button>
             </form>
 
-            {/* Order summary */}
             <div className="lg:sticky lg:top-24">
               <div className="bg-white border border-gray-200 rounded-2xl p-6 space-y-5">
                 <h2 className="font-bold text-slate-900 text-lg">Order Summary</h2>
@@ -207,15 +199,11 @@ const CheckoutPage = () => {
                 <div className="space-y-3 max-h-64 overflow-y-auto pr-1">
                   {items.map((item) => (
                     <div key={item.id} className="flex items-center gap-3">
-                      <img
-                        src={item.image}
-                        alt={item.name}
-                        className="w-12 h-12 object-cover rounded-lg bg-gray-100 flex-shrink-0"
-                      />
+                      <img src={item.image} alt={item.name} className="w-12 h-12 object-cover rounded-lg bg-gray-100 flex-shrink-0" />
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-slate-900 truncate">{item.name}</p>
                         {item.configurationLabel && (
-                          <p className="text-xs text-gray-500">{item.configurationLabel}</p>
+                          <p className="text-xs text-gray-500 truncate">{item.configurationLabel}</p>
                         )}
                         <p className="text-xs text-gray-400">Qty {item.quantity}</p>
                       </div>

@@ -120,3 +120,24 @@ export const decrementStock = async (items: DecrementItem[]) => {
         })
     );
 };
+
+// Ends a deal immediately: the product returns to its regular price.
+// Discount and badge are kept so the deal is easy to re-run from the product form.
+export const endDeal = async (id: string) => {
+    await updateDoc(doc(db, "products", id), { isDeal: false, dealEndsAt: null });
+};
+
+// Flips any product whose deal has expired back to a normal (non-deal) product.
+// Called opportunistically whenever the product list loads — no server cron needed.
+export const expireOldDeals = async (products: LaptopType[]) => {
+    const now = Date.now();
+    const expired = products.filter(
+        (p) => p.isDeal && p.dealEndsAt && p.dealEndsAt <= now
+    );
+
+    await Promise.all(
+        expired.map((p) =>
+            updateDoc(doc(db, "products", p.dbID!), { isDeal: false, dealEndsAt: null })
+        )
+    );
+};

@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { FormState, LaptopType } from '@/lib/types';
 import { addProduct, deleteProduct, deleteProductImage, getProducts, updateProduct } from '@/lib/productDataService';
-import { getProductSummary, getPricing } from '@/lib/productDisplay';
+import { getProductSummary, getPricing, isDealLive } from '@/lib/productDisplay';
 import { Check, ChevronDown, Edit, Filter, Menu, Plus, Search, Trash2, X } from 'lucide-react';
 import { categories, tags, dealBadges } from '@/lib/data';
 import { uploadToCloudinary } from '@/lib/cloudinary';
@@ -434,7 +434,7 @@ const page = () => {
                         alt={laptop.name}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                       />
-                      {laptop.isDeal && (
+                      {isDealLive(laptop) && (
                         <span className="absolute top-4 left-4 bg-amber-500 text-neutral-950 text-xs font-bold px-3 py-1.5 rounded-lg shadow">
                           {laptop.dealBadge || "Deal"}
                         </span>
@@ -475,9 +475,11 @@ const page = () => {
                             <span className="text-sm text-gray-400 line-through">
                               ₦{pricing.oldPrice.toLocaleString()}
                             </span>
-                            <span className="text-xs font-bold text-emerald-700 bg-emerald-100 px-2 py-1 rounded-md border border-emerald-200">
-                              -{pricing.percent}%
-                            </span>
+                            {isDealLive(laptop) && (
+                              <span className="text-xs font-bold text-emerald-700 bg-emerald-100 px-2 py-1 rounded-md border border-emerald-200">
+                                -{pricing.percent}%
+                              </span>
+                            )}
                           </>
                         )}
                       </div>

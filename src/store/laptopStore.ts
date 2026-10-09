@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { getProducts } from "@/lib/productDataService";
+import { expireOldDeals, getProducts } from "@/lib/productDataService";
 import { LaptopType } from "@/lib/types";
 type LaptopStore = {
   laptopStoreData: LaptopType[];
@@ -16,6 +16,7 @@ export const useLaptopStore = create<LaptopStore>((set) => ({
   fetchLaptops: () => {
     const unsubscribe = getProducts((data) => {
       set({ laptopStoreData: data, loadingStore: false });
+      expireOldDeals(data).catch(() => {});
     });
     return unsubscribe;
   },

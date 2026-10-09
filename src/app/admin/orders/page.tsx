@@ -3,7 +3,7 @@ import React, { useEffect, useState } from "react"
 import { getOrders, updateOrderStatus, Order, OrderStatus } from "@/lib/orderService"
 import { Menu, Package, MapPin, Phone, Mail } from "lucide-react"
 import { useSidebarStore } from "@/store/sidebarStore"
-
+import RecoverPayment from "@/app/components/RecoverPayment"
 const STATUS_COLORS: Record<OrderStatus, string> = {
   pending: "bg-amber-100 text-amber-700",
   paid: "bg-emerald-100 text-emerald-700",
@@ -142,10 +142,17 @@ export default function OrdersPage() {
                     </select>
                   </div>
                 )}
+                {order.status === "pending" && <RecoverPayment orderId={order.id} />}
+                {(order as any).stockShortage && (
+                  <p className="mt-3 text-xs font-semibold text-red-600 bg-red-50 rounded-lg px-3 py-2">
+                    Paid, but stock was short for: {(order as any).stockShortage.join(", ")}. Contact the customer or refund via Paystack.
+                  </p>
+                )}
               </div>
             ))}
           </div>
         )}
+
       </div>
     </main>
   )
