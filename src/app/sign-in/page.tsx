@@ -4,8 +4,9 @@ import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { toast } from "sonner"
-import { signInWithGoogle, signInWithFacebook, sendSignInCode, verifySignInCode } from "@/lib/customerAuth"
+import { signInWithGoogle, signInWithFacebook, sendSignInCode, verifySignInCode, friendlyAuthError, isAuthCancelled } from "@/lib/customerAuth"
 import { Mail, ArrowLeft } from "lucide-react"
+import Link from "next/link"
 
 const GoogleIcon = () => (
     <svg className="w-5 h-5" viewBox="0 0 24 24">
@@ -37,8 +38,8 @@ const SignInPage = () => {
             toast.success("Signed in!")
             router.push("/")
         } catch (err) {
-            console.error(err)
-            toast.error("Google sign-in failed. Please try again.")
+            if (isAuthCancelled(err)) return
+            toast.error(friendlyAuthError(err))
         } finally {
             setLoading(false)
         }
@@ -51,8 +52,8 @@ const SignInPage = () => {
             toast.success("Signed in!")
             router.push("/")
         } catch (err) {
-            console.error(err)
-            toast.error("Facebook sign-in failed. Please try again.")
+            if (isAuthCancelled(err)) return
+            toast.error(friendlyAuthError(err))
         } finally {
             setLoading(false)
         }
@@ -66,7 +67,7 @@ const SignInPage = () => {
             toast.success("Code sent! Check your email.")
             setStep("code")
         } catch (err: any) {
-            toast.error(err.message || "Failed to send code")
+            toast.error(friendlyAuthError(err))
         } finally {
             setLoading(false)
         }
@@ -80,7 +81,7 @@ const SignInPage = () => {
             toast.success("Signed in!")
             router.push("/")
         } catch (err: any) {
-            toast.error(err.message || "Invalid code")
+            toast.error(friendlyAuthError(err))
         } finally {
             setLoading(false)
         }
@@ -114,6 +115,8 @@ const SignInPage = () => {
                             <button onClick={() => router.push("/shop")} className="underline hover:text-gray-600">
                                 checkout as a guest
                             </button>
+                            . Ordered as a guest?{" "}
+                            <Link href="/track-order" className="underline hover:text-gray-600">Track your order</Link>
                         </p>
                     </div>
                 )}

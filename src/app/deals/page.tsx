@@ -38,8 +38,8 @@ const WHY_SHOP = [
     },
     {
         icon: Truck,
-        title: 'Delivery included',
-        description: 'Shipping is built into the deal price — the number you see is the number you pay.',
+        title: 'Pickup or delivery',
+        description: 'Collect from our shop for free, or have it delivered. The delivery fee is shown at checkout before you pay.',
     },
 ]
 

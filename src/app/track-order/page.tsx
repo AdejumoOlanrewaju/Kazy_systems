@@ -3,12 +3,16 @@ import React, { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Package, Search, CheckCircle2, Truck, Clock, XCircle } from "lucide-react"
+import { orderStatusLabel } from "@/lib/delivery"
 
 type TrackedOrder = {
   id: string
   status: string
   total: number
   items: { id: string; name: string; quantity: number; price: number; configurationLabel?: string }[]
+  itemsTotal: number | null
+  delivery: { method: "pickup" | "delivery"; state?: string; fee: number; eta: string; label: string; pickupAddress?: string } | null
+  shipping: { courier?: string; trackingNumber?: string; expectedDate?: string } | null
   customerName: string
   address: string
   createdAt: string | null
@@ -103,7 +107,7 @@ const TrackOrderPage = () => {
                 return (
                   <div className={`flex items-center gap-1.5 text-sm font-semibold ${config.color}`}>
                     <Icon className="w-4 h-4" />
-                    {config.label}
+                    {orderStatusLabel(order.status, order.delivery?.method)}
                   </div>
                 )
               })()}
@@ -116,7 +120,7 @@ const TrackOrderPage = () => {
                     <div className="flex flex-col items-center gap-1.5">
                       <div className={`w-3 h-3 rounded-full ${i <= currentStepIndex ? "bg-slate-900" : "bg-gray-200"}`} />
                       <span className={`text-xs capitalize ${i <= currentStepIndex ? "text-slate-900 font-medium" : "text-gray-400"}`}>
-                        {step}
+                        {orderStatusLabel(step, order.delivery?.method)}
                       </span>
                     </div>
                     {i < STATUS_STEPS.length - 1 && (
@@ -141,13 +145,61 @@ const TrackOrderPage = () => {
               ))}
             </div>
 
-            <div className="border-t border-gray-100 pt-4 flex justify-between font-bold text-slate-900">
-              <span>Total</span>
-              <span>₦{order.total.toLocaleString()}</span>
+            <div className="border-t border-gray-100 pt-4 space-y-1.5">
+              {order.delivery && order.itemsTotal !== null && (
+                <>
+                  <div className="flex justify-between text-sm text-gray-600">
+                    <span>Items</span>
+                    <span>₦{order.itemsTotal.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between text-sm text-gray-600">
+                    <span>
+                      {order.delivery.method === "pickup"
+                        ? "Pickup"
+                        : `Delivery${order.delivery.state ? ` (${order.delivery.state})` : ""}`}
+                    </span>
+                    <span>{order.delivery.fee > 0 ? `₦${order.delivery.fee.toLocaleString()}` : "Free"}</span>
+                  </div>
+                </>
+              )}
+              <div className="flex justify-between font-bold text-slate-900 pt-1">
+                <span>Total</span>
+                <span>₦{order.total.toLocaleString()}</span>
+              </div>
             </div>
 
-            <div className="text-sm text-gray-500">
-              <p>Delivering to: {order.address}</p>
+            <div className="bg-gray-50 rounded-xl p-4 text-sm text-gray-700 space-y-1.5">
+              {order.delivery?.method === "pickup" ? (
+                <>
+                  <p className="font-semibold text-slate-900">Pickup from our shop</p>
+                  {order.delivery?.pickupAddress && <p>{order.delivery.pickupAddress}</p>}
+                  <p className="text-gray-500">{order.delivery?.eta}</p>
+                </>
+              ) : (
+                <>
+                  <p className="font-semibold text-slate-900">Delivering to</p>
+                  <p>{order.address}</p>
+                  {order.delivery?.eta && <p className="text-gray-500">Estimated: {order.delivery.eta}</p>}
+                </>
+              )}
+              {(order.shipping?.courier || order.shipping?.trackingNumber || order.shipping?.expectedDate) && (
+                <div className="border-t border-gray-200 pt-2 mt-2 space-y-1">
+                  {order.shipping?.courier && (
+                    <p>Courier: <span className="font-medium">{order.shipping.courier}</span></p>
+                  )}
+                  {order.shipping?.trackingNumber && (
+                    <p>Tracking / waybill: <span className="font-mono font-medium">{order.shipping.trackingNumber}</span></p>
+                  )}
+                  {order.shipping?.expectedDate && (
+                    <p>
+                      Expected:{" "}
+                      <span className="font-medium">
+                        {new Date(order.shipping.expectedDate).toLocaleDateString("en-NG", { dateStyle: "medium" })}
+                      </span>
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         )}

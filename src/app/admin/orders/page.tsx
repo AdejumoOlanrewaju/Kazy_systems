@@ -1,22 +1,127 @@
 "use client"
 import React, { useEffect, useState } from "react"
-import { getOrders, updateOrderStatus, Order, OrderStatus } from "@/lib/orderService"
-import { Menu, Package, MapPin, Phone, Mail } from "lucide-react"
-import { useSidebarStore } from "@/store/sidebarStore"
+import { getOrders, updateOrderStatus, updateOrderShipping, Order, OrderStatus } from "@/lib/orderService"
+import { orderStatusLabel } from "@/lib/delivery"
 import RecoverPayment from "@/app/components/RecoverPayment"
+import { MessageCircle, Package, Store, Truck } from "lucide-react"
+import { toast } from "sonner"
+
 const STATUS_COLORS: Record<OrderStatus, string> = {
-  pending: "bg-amber-100 text-amber-700",
-  paid: "bg-emerald-100 text-emerald-700",
+  pending: "bg-yellow-100 text-yellow-700",
+  paid: "bg-green-100 text-green-700",
   failed: "bg-red-100 text-red-700",
   shipped: "bg-blue-100 text-blue-700",
   delivered: "bg-purple-100 text-purple-700",
+}
+
+// 0803 123 4567 / +234 803 123 4567 -> 2348031234567 (what wa.me expects)
+const toWhatsAppNumber = (phone: string) => {
+  const digits = phone.replace(/\D/g, "")
+  if (digits.startsWith("234")) return digits
+  if (digits.startsWith("0")) return `234${digits.slice(1)}`
+  return digits
+}
+
+const ShippingPanel = ({ order }: { order: Order }) => {
+  const isPickup = order.delivery?.method === "pickup"
+  const [courier, setCourier] = useState(order.shipping?.courier || "")
+  const [trackingNumber, setTrackingNumber] = useState(order.shipping?.trackingNumber || "")
+  const [expectedDate, setExpectedDate] = useState(order.shipping?.expectedDate || "")
+  const [saving, setSaving] = useState(false)
+
+  const save = async () => {
+    setSaving(true)
+    try {
+      await updateOrderShipping(order.id, {
+        courier: courier.trim(),
+        trackingNumber: trackingNumber.trim(),
+        expectedDate,
+      })
+      toast.success("Shipping details saved")
+    } catch {
+      toast.error("Couldn't save shipping details")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const buildMessage = () => {
+    const first = order.customerName.split(" ")[0]
+    const track = `Track your order any time: ${window.location.origin}/track-order (Order ID: ${order.id})`
+    if (order.status === "paid") {
+      return `Hi ${first}, we've received your payment and we're preparing your order. ${track}`
+    }
+    if (isPickup) {
+      const where = order.delivery?.pickupAddress ? ` at ${order.delivery.pickupAddress}` : ""
+      return `Hi ${first}, good news — your order is ready for pickup${where}. Please bring your order ID: ${order.id}. Thank you for shopping with Kayzee Global!`
+    }
+    const date = expectedDate
+      ? new Date(expectedDate).toLocaleDateString("en-NG", { dateStyle: "medium" })
+      : ""
+    return `Hi ${first}, your order has been shipped${courier ? ` via ${courier}` : ""}.${
+      trackingNumber ? ` Tracking/waybill: ${trackingNumber}.` : ""
+    }${date ? ` Expected delivery: ${date}.` : ""} ${track}`
+  }
+
+  const messageCustomer = () =>
+    window.open(
+      `https://wa.me/${toWhatsAppNumber(order.phone)}?text=${encodeURIComponent(buildMessage())}`,
+      "_blank",
+      "noopener,noreferrer"
+    )
+
+  return (
+    <div className="mt-4 border-t border-gray-100 pt-4 space-y-3">
+      {!isPickup && (
+        <>
+          <p className="text-xs font-semibold text-gray-500">Shipping details (shown to the customer)</p>
+          <div className="grid sm:grid-cols-3 gap-2">
+            <input
+              value={courier}
+              onChange={(e) => setCourier(e.target.value)}
+              placeholder="Courier / rider"
+              className="text-sm border border-gray-200 rounded-lg px-3 py-2"
+            />
+            <input
+              value={trackingNumber}
+              onChange={(e) => setTrackingNumber(e.target.value)}
+              placeholder="Tracking / waybill no."
+              className="text-sm border border-gray-200 rounded-lg px-3 py-2"
+            />
+            <input
+              type="date"
+              value={expectedDate}
+              onChange={(e) => setExpectedDate(e.target.value)}
+              className="text-sm border border-gray-200 rounded-lg px-3 py-2"
+            />
+          </div>
+        </>
+      )}
+      <div className="flex gap-2 flex-wrap">
+        {!isPickup && (
+          <button
+            onClick={save}
+            disabled={saving}
+            className="text-sm font-semibold bg-slate-900 text-white px-4 py-2 rounded-lg disabled:opacity-50"
+          >
+            {saving ? "Saving..." : "Save shipping details"}
+          </button>
+        )}
+        <button
+          onClick={messageCustomer}
+          className="flex items-center gap-1.5 text-sm font-semibold bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg"
+        >
+          <MessageCircle size={15} /> Message customer
+        </button>
+      </div>
+    </div>
+  )
 }
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<"all" | OrderStatus>("all")
-  const { toggleSidebar } = useSidebarStore()
 
   useEffect(() => {
     const unsubscribe = getOrders((data) => {
@@ -34,126 +139,126 @@ export default function OrdersPage() {
   }
 
   const handleStatusChange = async (orderId: string, status: OrderStatus) => {
-    await updateOrderStatus(orderId, status)
+    try {
+      await updateOrderStatus(orderId, status)
+    } catch {
+      toast.error("Couldn't update the status")
+    }
   }
 
-  const tabs = ["all", "pending", "paid", "shipped", "delivered", "failed"] as const
-  const counts = Object.fromEntries(
-    tabs.map((t) => [t, t === "all" ? orders.length : orders.filter((o) => o.status === t).length])
-  ) as Record<(typeof tabs)[number], number>
-
   return (
-    <main className="min-h-screen bg-gray-50 flex-1 overflow-y-auto">
-      <header className="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-40">
-        <div className="px-4 py-2.5 sm:px-6 sm:py-4">
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => toggleSidebar()}
-              className="p-2 hover:bg-gray-100 rounded-xl transition-colors text-gray-500 hover:text-gray-900"
-            >
-              <Menu size={20} />
-            </button>
-            <h2 className="text-[18px] sm:text-2xl font-bold text-gray-900">Orders</h2>
-          </div>
-        </div>
-      </header>
-      <div className="px-3 sm:px-6 py-4">
-        <div className="flex gap-2 mb-6 flex-wrap">
-          {tabs.map((f) => (
-            <button
-              key={f}
-              onClick={() => setFilter(f)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold capitalize transition-colors ${filter === f
-                ? "bg-amber-500 text-neutral-950"
-                : "bg-white border border-gray-200 text-gray-600 hover:border-amber-300"
-                }`}
-            >
-              {f}
-              <span
-                className={`text-xs px-1.5 py-0.5 rounded-full ${filter === f ? "bg-neutral-950/15" : "bg-gray-100 text-gray-500"
-                  }`}
-              >
-                {counts[f]}
-              </span>
-            </button>
-          ))}
-        </div>
+    <main className="min-h-screen bg-gray-50 flex-1 overflow-y-auto p-6">
+      <h1 className="text-2xl font-bold text-black mb-6">Orders</h1>
 
-        {loading ? (
-          <p className="text-gray-500">Loading orders...</p>
-        ) : filteredOrders.length === 0 ? (
-          <div className="bg-white border border-dashed border-gray-300 rounded-2xl py-16 text-center text-gray-400">
-            No orders yet.
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {filteredOrders.map((order) => (
-              <div key={order.id} className="bg-white rounded-2xl border border-gray-200 p-5">
-                <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-                  <div className="flex items-center gap-3">
-                    <span className="w-9 h-9 rounded-lg bg-amber-50 flex items-center justify-center">
-                      <Package className="w-4 h-4 text-amber-600" />
+      <div className="flex gap-2 mb-6 flex-wrap">
+        {(["all", "pending", "paid", "shipped", "delivered", "failed"] as const).map((f) => (
+          <button
+            key={f}
+            onClick={() => setFilter(f)}
+            className={`px-4 py-2 rounded-lg text-sm font-semibold capitalize ${
+              filter === f ? "bg-black text-white" : "bg-white border border-gray-200 text-gray-700"
+            }`}
+          >
+            {f}
+          </button>
+        ))}
+      </div>
+
+      {loading ? (
+        <p className="text-gray-500">Loading orders...</p>
+      ) : filteredOrders.length === 0 ? (
+        <p className="text-gray-500">No orders yet.</p>
+      ) : (
+        <div className="space-y-4">
+          {filteredOrders.map((order) => {
+            const method = order.delivery?.method
+            const canShip = order.status !== "pending" && order.status !== "failed"
+
+            return (
+              <div key={order.id} className="bg-white rounded-xl border border-gray-200 p-5">
+                <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+                  <div className="flex items-center gap-2">
+                    <Package className="w-4 h-4 text-slate-700" />
+                    <span className="font-semibold text-slate-900">₦{order.total.toLocaleString()}</span>
+                    <span className={`text-xs font-semibold px-2 py-1 rounded-full ${STATUS_COLORS[order.status]}`}>
+                      {orderStatusLabel(order.status, method)}
                     </span>
-                    <div>
-                      <span className="font-bold text-gray-900 block">
-                        ₦{order.total.toLocaleString()}
-                      </span>
-                      <span className="text-xs text-gray-400">{formatDate(order)}</span>
-                    </div>
                   </div>
-                  <span className={`text-xs font-semibold px-2.5 py-1 rounded-full capitalize ${STATUS_COLORS[order.status]}`}>
-                    {order.status}
-                  </span>
+                  <span className="text-xs text-gray-400">{formatDate(order)}</span>
                 </div>
 
-                <div className="grid sm:grid-cols-2 gap-x-6 gap-y-1.5 text-sm mb-4 text-gray-600">
-                  <p><span className="font-semibold text-gray-900">Customer:</span> {order.customerName}</p>
-                  <p className="flex items-center gap-1.5"><Mail size={13} className="text-gray-400" /> {order.email}</p>
-                  <p className="flex items-center gap-1.5"><Phone size={13} className="text-gray-400" /> {order.phone}</p>
-                  <p className="flex items-center gap-1.5"><MapPin size={13} className="text-gray-400" /> {order.address}</p>
+                {order.delivery && (
+                  <div className="flex items-center gap-2 text-sm mb-3 bg-gray-50 rounded-lg px-3 py-2 text-gray-700">
+                    {method === "pickup" ? <Store size={15} /> : <Truck size={15} />}
+                    <span className="font-medium">
+                      {method === "pickup" ? "Pickup from shop" : `Delivery to ${order.delivery.state}`}
+                    </span>
+                    <span className="text-gray-500">
+                      · {order.delivery.fee > 0 ? `₦${order.delivery.fee.toLocaleString()}` : "no fee"}
+                      {order.delivery.eta ? ` · ${order.delivery.eta}` : ""}
+                    </span>
+                  </div>
+                )}
+
+                <div className="grid sm:grid-cols-2 gap-x-6 gap-y-1 text-sm mb-3">
+                  <p><span className="font-semibold">Customer:</span> {order.customerName}</p>
+                  <p><span className="font-semibold">Email:</span> {order.email}</p>
+                  <p><span className="font-semibold">Phone:</span> {order.phone}</p>
+                  <p><span className="font-semibold">Address:</span> {order.address}</p>
                   {order.paystackRef && (
-                    <p><span className="font-semibold text-gray-900">Ref:</span> {order.paystackRef}</p>
+                    <p><span className="font-semibold">Ref:</span> {order.paystackRef}</p>
                   )}
                 </div>
 
-                <div className="border-t border-gray-100 pt-3 mb-4">
+                <div className="border-t border-gray-100 pt-3 mb-3 space-y-1">
                   {order.items.map((item) => (
-                    <div key={item.id} className="flex justify-between text-sm text-gray-600 py-0.5">
-                      <span className="text-gray-900">{item.name} × {item.quantity}</span>
-                      {item.configurationLabel && (
-                        <p className="text-xs text-gray-400">{item.configurationLabel}</p>
-                      )}
-                      <span className="text-gray-900 font-medium">₦{(item.price * item.quantity).toLocaleString()}</span>
+                    <div key={item.id} className="flex justify-between text-sm text-gray-600">
+                      <div>
+                        <span>{item.name} × {item.quantity}</span>
+                        {item.configurationLabel && (
+                          <p className="text-xs text-gray-400">{item.configurationLabel}</p>
+                        )}
+                      </div>
+                      <span>₦{(item.price * item.quantity).toLocaleString()}</span>
                     </div>
                   ))}
+                  {order.delivery && (
+                    <div className="flex justify-between text-sm text-gray-500 pt-1">
+                      <span>{method === "pickup" ? "Pickup" : "Delivery"}</span>
+                      <span>{order.delivery.fee > 0 ? `₦${order.delivery.fee.toLocaleString()}` : "Free"}</span>
+                    </div>
+                  )}
                 </div>
 
-                {order.status !== "pending" && order.status !== "failed" && (
+                {canShip && (
                   <div className="flex items-center gap-2">
                     <label className="text-xs font-semibold text-gray-500">Update status:</label>
                     <select
                       value={order.status}
                       onChange={(e) => handleStatusChange(order.id, e.target.value as OrderStatus)}
-                      className="text-sm border border-gray-200 rounded-lg px-2 py-1.5 text-gray-900 focus:border-amber-400 focus:outline-none"
+                      className="text-sm border border-gray-200 rounded-lg px-2 py-1"
                     >
-                      <option value="paid">Paid</option>
-                      <option value="shipped">Shipped</option>
-                      <option value="delivered">Delivered</option>
+                      <option value="paid">{orderStatusLabel("paid", method)}</option>
+                      <option value="shipped">{orderStatusLabel("shipped", method)}</option>
+                      <option value="delivered">{orderStatusLabel("delivered", method)}</option>
                     </select>
                   </div>
                 )}
+
+                {canShip && <ShippingPanel order={order} />}
+
                 {order.status === "pending" && <RecoverPayment orderId={order.id} />}
-                {(order as any).stockShortage && (
+
+                {order.stockShortage && order.stockShortage.length > 0 && (
                   <p className="mt-3 text-xs font-semibold text-red-600 bg-red-50 rounded-lg px-3 py-2">
-                    Paid, but stock was short for: {(order as any).stockShortage.join(", ")}. Contact the customer or refund via Paystack.
+                    Paid, but stock was short for: {order.stockShortage.join(", ")}. Contact the customer or refund via Paystack.
                   </p>
                 )}
               </div>
-            ))}
-          </div>
-        )}
-
-      </div>
+            )
+          })}
+        </div>
+      )}
     </main>
   )
 }

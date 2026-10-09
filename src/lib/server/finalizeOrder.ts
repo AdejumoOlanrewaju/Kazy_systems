@@ -122,6 +122,13 @@ async function notifyAdmin(orderId: string, order: any, shortages: string[]) {
     })
     .join("\n");
 
+  const d = order.delivery;
+  const deliveryBlock = !d
+    ? `Delivery address: ${order.address}`
+    : d.method === "pickup"
+      ? `HOW: PICKUP from the shop (no delivery fee)`
+      : `HOW: DELIVERY to ${d.state} — fee ₦${(d.fee || 0).toLocaleString()} (${d.eta || "no estimate"})\nDelivery address: ${order.address}`;
+
   const warning = shortages.length
     ? `\n⚠️ STOCK PROBLEM: this order was paid but stock was already short for:\n${shortages.join("\n")}\nContact the customer or refund via Paystack.\n`
     : "";
@@ -136,12 +143,14 @@ Order ID: ${orderId}
 Customer: ${order.customerName}
 Phone: ${order.phone}
 Email: ${order.email}
-Delivery address: ${order.address}
+${deliveryBlock}
 
 Items:
 ${itemsList}
 
-Total: ₦${order.total.toLocaleString()}
+Items total: ₦${(order.itemsTotal ?? order.total).toLocaleString()}
+Delivery fee: ₦${(d?.fee ?? 0).toLocaleString()}
+TOTAL PAID: ₦${order.total.toLocaleString()}
 
 View in admin: ${SITE_URL}/admin/orders`,
   });

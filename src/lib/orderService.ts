@@ -16,7 +16,28 @@ export type Order = {
   status: OrderStatus;
   paystackRef?: string;
   createdAt?: { seconds: number };
+  itemsTotal?: number;
+  delivery?: OrderDelivery;
+  shipping?: OrderShipping;
+  stockShortage?: string[];
 };
+
+export type OrderDelivery = {
+  method: "pickup" | "delivery";
+  fee: number;
+  eta: string;
+  label: string;
+  state?: string;
+  zoneName?: string;
+  pickupAddress?: string;
+};
+
+export type OrderShipping = {
+  courier?: string;
+  trackingNumber?: string;
+  expectedDate?: string; // "YYYY-MM-DD"
+};
+
 
 export const createOrder = async (data: {
   items: CartItem[];
@@ -69,4 +90,11 @@ export const getOrdersByEmail = (email: string, callback: (orders: Order[]) => v
     const orders = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as Order));
     callback(orders);
   });
+};
+
+export const updateOrderShipping = async (
+  orderId: string,
+  shipping: { courier: string; trackingNumber: string; expectedDate: string }
+) => {
+  await updateDoc(doc(db, "orders", orderId), { shipping });
 };

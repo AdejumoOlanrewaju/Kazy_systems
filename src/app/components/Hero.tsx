@@ -8,7 +8,7 @@ import Link from 'next/link';
 
 
 const features = [
-    { icon: <Truck className="w-6 h-6" />, text: 'Free Shipping', subtext: 'On orders $500+' },
+    { icon: <Truck className="w-6 h-6" />, text: 'Free Shipping', subtext: 'On orders ₦1m+' },
     { icon: <Shield className="w-6 h-6" />, text: '1-Year Warranty', subtext: 'All products' },
     { icon: <Package className="w-6 h-6" />, text: 'Easy Returns', subtext: '30-day policy' },
     { icon: <Clock className="w-6 h-6" />, text: '24/7 Support', subtext: 'Always here' }
@@ -40,7 +40,7 @@ const Hero = () => {
                             <p className="text-[17px] sm:text-xl text-gray-300 leading-relaxed mt-0">
                                 Shop the latest laptops from top brands with unbeatable prices. Professional repair services with same-day turnaround available.
                             </p>
-                            <div className="flex flex-wrap gap-4">
+                            <div className="flex flex-wrap gap-2">
                                 <Link href={"/shop"}>
                                     <Button size="lg" className="bg-amber-600 hover:bg-amber-700 text-white font-semibold text-lg px-8">
                                         Shop Now

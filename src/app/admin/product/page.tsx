@@ -24,8 +24,8 @@ const page = () => {
     price: "",
     oldPrice: "",
     images: [],
-    rating: "",
-    reviews: "",
+    // rating: "",
+    // reviews: "",
     stockQuantity: "1",
     tag: "",
     description: "",
@@ -183,7 +183,11 @@ const page = () => {
   const handleSubmit = async () => {
     const hasConfigurations = formData.configurations.length > 0;
 
-    if (!formData.name || !formData.rating || !formData.reviews || (!hasConfigurations && !formData.price)) {
+    // if (!formData.name || !formData.rating || !formData.reviews || (!hasConfigurations && !formData.price)) {
+    //   alert("Please fill in all required fields");
+    //   return;
+    // }
+    if (!formData.name || (!hasConfigurations && !formData.price)) {
       alert("Please fill in all required fields");
       return;
     }
@@ -201,8 +205,8 @@ const page = () => {
       price: formData.price ? parseFloat(formData.price) : 0,
       oldPrice: formData.oldPrice ? parseFloat(formData.oldPrice) : 0,
       images: formData.images,
-      rating: parseFloat(formData.rating),
-      reviews: parseInt(formData.reviews),
+      rating: editingLaptop?.rating ?? 0,
+      reviews: editingLaptop?.reviews ?? 0,
       stockQuantity: parseInt(formData.stockQuantity) || 0,
       tag: formData.tag,
       description: formData.description,
@@ -267,8 +271,8 @@ const page = () => {
       price: "",
       oldPrice: "",
       images: [],
-      rating: "",
-      reviews: "",
+      // rating: "",
+      // reviews: "",
       stockQuantity: "1",
       tag: "",
       description: "",
@@ -295,8 +299,8 @@ const page = () => {
       price: laptop.price?.toString() || "",
       oldPrice: laptop.oldPrice ? laptop.oldPrice.toString() : "",
       images: laptop.images,
-      rating: laptop.rating.toString(),
-      reviews: laptop.reviews.toString(),
+      // rating: laptop.rating.toString(),
+      // reviews: laptop.reviews.toString(),
       stockQuantity: laptop.stockQuantity?.toString() || "0",
       tag: laptop.tag || "",
       description: laptop.description || "",
@@ -484,7 +488,7 @@ const page = () => {
                         )}
                       </div>
 
-                      <div className="flex items-center gap-2 mb-5 pb-5 border-b border-gray-200">
+                      {/* <div className="flex items-center gap-2 mb-5 pb-5 border-b border-gray-200">
                         <div className="flex items-center gap-1">
                           <span className="text-amber-400">★</span>
                           <span className="font-semibold text-gray-800 text-sm">
@@ -495,6 +499,19 @@ const page = () => {
                         <span className="text-sm text-gray-500">
                           {laptop.reviews} reviews
                         </span>
+                      </div> */}
+
+                      <div className="flex items-center gap-2 mb-5 pb-5 border-b border-gray-200 text-sm text-gray-500">
+                        {laptop.reviews > 0 ? (
+                          <>
+                            <span className="text-amber-400">★</span>
+                            <span className="font-semibold text-gray-800">{laptop.rating}</span>
+                            <span className="text-gray-300">•</span>
+                            <span>{laptop.reviews} reviews</span>
+                          </>
+                        ) : (
+                          <span>No reviews yet</span>
+                        )}
                       </div>
 
                       <div className="flex gap-2">
@@ -665,7 +682,7 @@ const page = () => {
                   </p>
                 </div>
 
-                <div>
+                {/* <div>
                   <label className="block text-sm font-semibold text-white mb-2">
                     Rating <span className="text-amber-400">*</span>
                   </label>
@@ -694,7 +711,7 @@ const page = () => {
                     placeholder="0"
                     className={inputClass}
                   />
-                </div>
+                </div> */}
 
                 <div className="md:col-span-2">
                   <label className="block text-sm font-semibold text-white mb-2">

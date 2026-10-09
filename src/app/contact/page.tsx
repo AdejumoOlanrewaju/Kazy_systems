@@ -4,10 +4,12 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { Check, ChevronDown, Clock, Mail, MapPin, MessageCircle, Phone } from 'lucide-react'
+import { Check, ChevronDown, Clock, Mail, MapPin, MessageCircle, Package, Phone } from 'lucide-react'
 import React, { useState } from 'react'
 import { submitLead } from '@/lib/leadService'
-
+import Link from 'next/link'
+import { useDeliverySettings } from '@/lib/deliveryService'
+import { describeDelivery } from '@/lib/delivery'
 const WHATSAPP_NUMBER = '2349165210359'
 const PHONE_NUMBER = '+2349165210359'
 const PHONE_DISPLAY = '0916 521 0359'
@@ -21,25 +23,7 @@ const DIRECTIONS_LINK = `https://www.google.com/maps/search/?api=1&query=${encod
     STORE_ADDRESS
 )}`
 
-const FAQS = [
-    {
-        question: 'How long does laptop repair take?',
-        answer:
-            'Most repairs are completed within 24-48 hours. Complex repairs may take 2-3 days. We offer express service for urgent repairs.',
-    },
-    {
-        question: 'Do you deliver nationwide?',
-        answer:
-            'Yes, we deliver to all states in Nigeria. Delivery typically takes 2-5 business days depending on your location. Free delivery for orders above ₦500,000.',
-    },
-    {
-        question: "Can I return a product if I'm not satisfied?",
-        answer:
-            "If you’re not satisfied with your purchase or experience any issues with our repair service, please contact us. Our team is available 24/7 to discuss your concerns and help find the best possible solution.",
-    },
 
-
-]
 
 const page = () => {
     const [openFaq, setOpenFaq] = useState<number | null>(null)
@@ -53,7 +37,28 @@ const page = () => {
     })
     const [submitting, setSubmitting] = useState(false)
     const [submitted, setSubmitted] = useState(false)
+    const { settings: deliverySettings, configured: deliveryConfigured } = useDeliverySettings()
+    const FAQS = [
+        {
+            question: 'How long does laptop repair take?',
+            answer:
+                'Most repairs are completed within 24-48 hours. Complex repairs may take 2-3 days. We offer express service for urgent repairs.',
+        },
+        {
+            question: 'Do you deliver nationwide?',
+            answer:
+                deliveryConfigured
+                ? describeDelivery(deliverySettings)
+                    : "Contact us for delivery details to your location."
+        },
+        {
+            question: "Can I return a product if I'm not satisfied?",
+            answer:
+                "If you’re not satisfied with your purchase or experience any issues with our repair service, please contact us. Our team is available 24/7 to discuss your concerns and help find the best possible solution.",
+        },
 
+
+    ]
     const handleContactChange = (
         e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
     ) => {
@@ -143,6 +148,8 @@ const page = () => {
                             </CardContent>
                         </Card>
 
+                        
+
                         <Card className="text-center border-2 border-slate-100 hover:border-amber-400 transition-colors">
                             <CardHeader>
                                 <div className="flex justify-center mb-4">
@@ -169,6 +176,21 @@ const page = () => {
                                 </a>
                             </CardContent>
                         </Card>
+
+                        <div className="flex flex-col sm:items-center justify-between gap-4 bg-slate-50 border-2 border-slate-200 rounded-xl p-8 mb-12">
+                            <div className="flex flex-col justify-center items-center gap-3">
+                                <Package className="w-10 h-10 text-slate-900 flex-shrink-0 mt-0.5" />
+                                <div className="text-center">
+                                    <h3 className="font-bold text-slate-900">Already placed an order?</h3>
+                                    <p className="text-sm text-gray-600">Check its status instantly with your order ID — no need to message us.</p>
+                                </div>
+                            </div>
+                            <Link href="/track-order" className="mt-10">
+                                <Button className="bg-slate-900 hover:bg-slate-800 text-white font-semibold whitespace-nowrap">
+                                    Track my order
+                                </Button>
+                            </Link>
+                        </div>
                     </div>
 
                     {/* Contact Form */}

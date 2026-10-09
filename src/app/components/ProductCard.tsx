@@ -55,13 +55,13 @@ const ProductCard = ({ laptop }: { laptop: any }) => {
                     </span>
                 </div>
                 <CardHeader className="pb-3">
-                    <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center space-x-1">
+                    {laptop.reviews > 0 && (
+                        <div className="flex items-center space-x-1 mb-2">
                             <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
                             <span className="text-sm font-semibold">{laptop.rating}</span>
                             <span className="text-xs text-gray-500">({laptop.reviews})</span>
                         </div>
-                    </div>
+                    )}
                     <CardTitle className="text-lg font-bold text-slate-900 line-clamp-1">{laptop.name}</CardTitle>
                     <CardDescription className="text-sm line-clamp-2">{getProductSummary(laptop)}</CardDescription>
                 </CardHeader>

@@ -11,6 +11,8 @@ import { toast } from 'sonner'
 import { ProductConfiguration } from '@/lib/types'
 import { getConfigurationLabel, getEffectivePrice, isDealLive } from '@/lib/productDisplay'
 import DealCountdown from './DealCountdown'
+import ReviewsSection from './ReviewsSection'
+
 const ProductDetailsUI = ({ productId }: { productId: string }) => {
     const { laptopStoreData, loadingStore } = useLaptopStore()
     const laptopProduct = laptopStoreData.find(
@@ -144,7 +146,7 @@ const ProductDetailsUI = ({ productId }: { productId: string }) => {
                                 <p className="text-sm text-gray-500 mb-3">{laptopProduct.conditionNotes}</p>
                             )}
 
-                            <div className="flex items-center gap-3">
+                            {/* <div className="flex items-center gap-3">
                                 <div className="flex items-center gap-0.5">
                                     {[...Array(5)].map((_, i) => (
                                         <Star
@@ -158,7 +160,24 @@ const ProductDetailsUI = ({ productId }: { productId: string }) => {
                                 </div>
                                 <span className="font-semibold text-slate-900">{laptopProduct?.rating}</span>
                                 <span className="text-gray-500 text-sm">({laptopProduct?.reviews} reviews)</span>
-                            </div>
+                            </div> */}
+
+                            {(laptopProduct?.reviews ?? 0) > 0 ? (
+                                <a href="#reviews" className="flex items-center gap-3">
+                                    <div className="flex items-center gap-0.5">
+                                        {[...Array(5)].map((_, i) => (
+                                            <Star
+                                                key={i}
+                                                className={`w-4 h-4 ${i < Math.round(laptopProduct?.rating ?? 0) ? 'fill-amber-500 text-amber-500' : 'text-gray-300'}`}
+                                            />
+                                        ))}
+                                    </div>
+                                    <span className="font-semibold text-slate-900">{laptopProduct?.rating}</span>
+                                    <span className="text-gray-500 text-sm">({laptopProduct?.reviews} reviews)</span>
+                                </a>
+                            ) : (
+                                <a href="#reviews" className="text-sm text-gray-500 hover:text-slate-900">No reviews yet</a>
+                            )}
                         </div>
 
                         {hasConfigurations && (
@@ -262,7 +281,7 @@ const ProductDetailsUI = ({ productId }: { productId: string }) => {
                                 <ShoppingCart className="w-5 h-5 mr-2" />
                                 {inStock ? 'Add to cart' : 'Out of stock'}
                             </Button>
-                            <WhatsappBtn product={laptopProduct} />
+                            <WhatsappBtn product={laptopProduct} configuration = {selectedConfig} />
                             <p className="sm:text-center text-sm text-gray-500 flex items-center justify-center gap-1.5">
                                 <MessageCircle className="w-5 h-5" />
                                 Or chat with us on WhatsApp to place your order
@@ -271,6 +290,7 @@ const ProductDetailsUI = ({ productId }: { productId: string }) => {
                     </div>
                 </div>
             )}
+            {!loadingStore && laptopProduct && <ReviewsSection productId={laptopProduct.dbID} />}
         </>
     )
 }

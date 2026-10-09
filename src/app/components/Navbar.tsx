@@ -26,6 +26,7 @@ const Navbar = () => {
         { name: 'Repair PC', href: '/repair' },
         { name: 'Deals', href: '/deals' },
         { name: 'Contact', href: '/contact' },
+        // { name: 'Track Order', href: '/track-order' },
     ];
 
     const isActive = (href: string) => pathname === href;
@@ -101,7 +102,7 @@ const Navbar = () => {
                                 <ShoppingCart className="w-5 h-5" />
 
                                 {mounted && totalItems > 0 && (
-                                    <span className="absolute -top-1 -right-1 bg-red-600 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                                    <span className="absolute top-[2px] right-0 bg-red-600 text-white text-[10px] rounded-full w-4 h-4 flex items-center justify-center">
                                         {totalItems}
                                     </span>
                                 )}
@@ -114,7 +115,7 @@ const Navbar = () => {
                                 <div className="relative">
                                     <button
                                         onClick={() => setAccountMenuOpen(!accountMenuOpen)}
-                                        className="w-7 h-7 rounded-full bg-slate-900 text-white flex items-center justify-center font-semibold text-[12px] hover:bg-slate-800 transition-colors"
+                                        className="w-6 h-6 rounded-full bg-slate-900 text-white flex items-center justify-center font-semibold text-[12px] hover:bg-slate-800 transition-colors"
                                     >
                                         {initial}
                                     </button>

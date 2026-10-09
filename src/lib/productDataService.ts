@@ -28,7 +28,8 @@ export const getProducts = (callback: (products: any[]) => void) => {
 
 export const updateProduct = async (id: string, data: LaptopType) => {
     try {
-        const { dbID, ...dataToSave } = data;
+        // rating/reviews belong to the reviews system — an edit must never overwrite them.
+        const { dbID, rating, reviews, ...dataToSave } = data;
         const docRef = doc(db, 'products', id);
         await updateDoc(docRef, dataToSave);
     } catch (err) {

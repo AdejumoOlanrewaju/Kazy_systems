@@ -5,10 +5,12 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useCartStore } from "@/store/cartStore"
 import { useLaptopStore } from "@/store/laptopStore"
+import { useDeliverySettings } from "@/lib/deliveryService"
+import { computeDelivery, DeliveryMethod, NIGERIAN_STATES } from "@/lib/delivery"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { toast } from "sonner"
-import { ArrowLeft, Lock, ShieldCheck, User, MapPin } from "lucide-react"
+import { ArrowLeft, Lock, ShieldCheck, User, MapPin, Truck, Store } from "lucide-react"
 
 declare global {
   interface Window {
@@ -16,12 +18,46 @@ declare global {
   }
 }
 
+const OptionCard = ({
+  active,
+  disabled,
+  onClick,
+  icon,
+  title,
+  subtitle,
+}: {
+  active: boolean
+  disabled?: boolean
+  onClick: () => void
+  icon: React.ReactNode
+  title: string
+  subtitle: string
+}) => (
+  <button
+    type="button"
+    onClick={onClick}
+    disabled={disabled}
+    className={`text-left rounded-xl border-2 p-4 transition-colors ${
+      active ? "border-slate-900 bg-slate-50" : "border-gray-200 hover:border-gray-300"
+    } ${disabled ? "opacity-50 cursor-not-allowed" : ""}`}
+  >
+    <div className="flex items-center gap-2 font-semibold text-slate-900">
+      {icon}
+      {title}
+    </div>
+    <p className="text-xs text-gray-500 mt-1">{subtitle}</p>
+  </button>
+)
+
 const CheckoutPage = () => {
   const router = useRouter()
   const { items, totalPrice, clearCart, syncPrices } = useCartStore()
   const { laptopStoreData, loadingStore } = useLaptopStore()
+  const { settings, configured, loading: settingsLoading, error: settingsError } = useDeliverySettings()
 
   const [form, setForm] = useState({ customerName: "", email: "", phone: "", address: "" })
+  const [method, setMethod] = useState<DeliveryMethod>("delivery")
+  const [state, setState] = useState("")
   const [processing, setProcessing] = useState(false)
   const paidRef = useRef(false) // Paystack fires onClose after a successful payment too
 
@@ -30,13 +66,26 @@ const CheckoutPage = () => {
     if (!loadingStore && laptopStoreData.length > 0) syncPrices(laptopStoreData)
   }, [laptopStoreData, loadingStore, syncPrices])
 
+  // Start on whichever option is actually available.
+  useEffect(() => {
+    if (settingsLoading) return
+    if (!configured && settings.pickup.enabled) setMethod("pickup")
+    else if (configured && !settings.pickup.enabled) setMethod("delivery")
+  }, [settingsLoading, configured, settings.pickup.enabled])
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
     setForm((prev) => ({ ...prev, [name]: value }))
   }
 
-  // Runs after Paystack reports success. The server re-verifies everything
-  // with Paystack; the browser's word is never trusted.
+  // What the customer sees. The server recomputes this independently and is
+  // the only one that decides what is charged.
+  const subtotal = totalPrice()
+  const quote = settingsLoading ? null : computeDelivery(settings, subtotal, method, state || undefined)
+  const deliveryFee = quote && quote.ok ? quote.fee : 0
+  const grandTotal = subtotal + deliveryFee
+  const canPay = !processing && !settingsLoading && !!quote && quote.ok
+
   const finishPayment = async (orderId: string, reference: string) => {
     try {
       const res = await fetch("/api/checkout/complete", {
@@ -48,7 +97,7 @@ const CheckoutPage = () => {
 
       clearCart()
       toast.success("Payment successful!")
-      router.push(`/order-confirmation?orderId=${orderId}`)
+      router.push(`/order-Confirmation?orderId=${orderId}`)
     } catch {
       toast.error(
         `We received your payment (ref: ${reference}) but couldn't confirm your order yet. Please don't pay again — contact us with this reference.`,
@@ -61,12 +110,20 @@ const CheckoutPage = () => {
   const handleCheckout = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!form.customerName || !form.email || !form.phone || !form.address) {
-      toast.error("Please fill in all fields.")
+    if (!form.customerName || !form.email || !form.phone) {
+      toast.error("Please fill in your name, email and phone number.")
       return
     }
     if (items.length === 0) {
       toast.error("Your cart is empty.")
+      return
+    }
+    if (!quote || !quote.ok) {
+      toast.error(quote && !quote.ok ? quote.error : "Please choose how you want to receive your order.")
+      return
+    }
+    if (method === "delivery" && !form.address.trim()) {
+      toast.error("Please enter your delivery address.")
       return
     }
     if (!window.PaystackPop) {
@@ -77,7 +134,7 @@ const CheckoutPage = () => {
     setProcessing(true)
     paidRef.current = false
 
-    // The server prices the cart, checks stock, and creates the order.
+    // The server prices the items AND delivery, checks stock, and creates the order.
     let init: { orderId: string; reference: string; amountKobo: number; email: string }
     try {
       const res = await fetch("/api/checkout/init", {
@@ -89,16 +146,15 @@ const CheckoutPage = () => {
             configurationId: i.configurationId,
             quantity: i.quantity,
           })),
-          customer: form,
-          expectedTotal: totalPrice(),
+          customer: { ...form, address: method === "delivery" ? form.address : "" },
+          delivery: { method, state: method === "delivery" ? state : undefined },
+          expectedTotal: grandTotal,
         }),
       })
       const data = await res.json()
 
       if (!res.ok) {
-        if (data.code === "PRICE_CHANGED" || data.code === "UNAVAILABLE" || data.code === "NO_STOCK") {
-          syncPrices(laptopStoreData)
-        }
+        if (["PRICE_CHANGED", "UNAVAILABLE", "NO_STOCK"].includes(data.code)) syncPrices(laptopStoreData)
         toast.error(data.error || "Couldn't start checkout.")
         setProcessing(false)
         return
@@ -148,7 +204,7 @@ const CheckoutPage = () => {
           </Link>
           <h1 className="text-3xl font-bold text-slate-900 mb-8">Checkout</h1>
 
-          <div className="lg:grid lg:grid-cols-3 gap-8 items-start">
+          <div className="grid lg:grid-cols-3 gap-8 items-start">
             <form onSubmit={handleCheckout} className="lg:col-span-2 space-y-6">
               <div className="bg-white border border-gray-200 rounded-2xl p-6 space-y-5">
                 <h2 className="font-bold text-slate-900 flex items-center gap-2">
@@ -174,25 +230,90 @@ const CheckoutPage = () => {
               <div className="bg-white border border-gray-200 rounded-2xl p-6 space-y-5">
                 <h2 className="font-bold text-slate-900 flex items-center gap-2">
                   <MapPin className="w-4 h-4 text-slate-400" />
-                  Delivery Address
+                  How do you want to receive it?
                 </h2>
-                <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-1.5">Address *</label>
-                  <Input name="address" value={form.address} onChange={handleChange} placeholder="Street, City, State" required className="h-11" />
+
+                {settingsError && (
+                  <p className="text-sm text-red-600">
+                    We couldn't load delivery options. Please refresh the page.
+                  </p>
+                )}
+
+                <div className="grid sm:grid-cols-2 gap-3">
+                  <OptionCard
+                    active={method === "delivery"}
+                    disabled={!configured}
+                    onClick={() => setMethod("delivery")}
+                    icon={<Truck className="w-4 h-4" />}
+                    title="Delivery"
+                    subtitle={configured ? "We bring it to you" : "Not available right now"}
+                  />
+                  <OptionCard
+                    active={method === "pickup"}
+                    disabled={!settings.pickup.enabled}
+                    onClick={() => setMethod("pickup")}
+                    icon={<Store className="w-4 h-4" />}
+                    title="Pickup"
+                    subtitle={settings.pickup.enabled ? "Free — collect from our shop" : "Not available right now"}
+                  />
                 </div>
+
+                {method === "delivery" && configured && (
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-600 mb-1.5">State *</label>
+                      <select
+                        value={state}
+                        onChange={(e) => setState(e.target.value)}
+                        className="w-full h-11 px-3 border border-gray-300 rounded-md bg-white text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
+                      >
+                        <option value="">Select your state</option>
+                        {NIGERIAN_STATES.map((s) => (
+                          <option key={s} value={s}>{s}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-600 mb-1.5">Delivery address *</label>
+                      <Input name="address" value={form.address} onChange={handleChange} placeholder="House number, street, area, city" className="h-11" />
+                    </div>
+                    {quote && quote.ok && (
+                      <div className="text-sm bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-gray-700">
+                        <span className="font-semibold text-slate-900">{quote.label}:</span>{" "}
+                        {quote.fee > 0 ? `₦${quote.fee.toLocaleString()}` : "Free"}
+                        {quote.free && " — your order qualifies for free delivery"}
+                        {quote.eta && <span className="text-gray-500"> · {quote.eta}</span>}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {method === "pickup" && settings.pickup.enabled && (
+                  <div className="text-sm bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-gray-700 space-y-1">
+                    <p className="font-semibold text-slate-900">Pick up from our shop</p>
+                    {settings.pickup.address && <p>{settings.pickup.address}</p>}
+                    {settings.pickup.eta && <p className="text-gray-500">{settings.pickup.eta}</p>}
+                  </div>
+                )}
+
+                {!settingsLoading && !configured && !settings.pickup.enabled && (
+                  <p className="text-sm text-gray-600">
+                    Online ordering isn't available right now. Please <Link href="/contact" className="underline">contact us</Link> to order.
+                  </p>
+                )}
               </div>
 
               <Button
                 type="submit"
-                disabled={processing}
+                disabled={!canPay}
                 size="lg"
                 className="w-full lg:hidden bg-slate-900 hover:bg-slate-800 text-white font-semibold h-12 rounded-xl disabled:opacity-60"
               >
-                {processing ? "Processing..." : `Pay ₦${totalPrice().toLocaleString()}`}
+                {processing ? "Processing..." : `Pay ₦${grandTotal.toLocaleString()}`}
               </Button>
             </form>
 
-            <div className="lg:sticky lg:top-24 lg:mt-0 mt-4">
+            <div className="lg:sticky lg:top-24">
               <div className="bg-white border border-gray-200 rounded-2xl p-6 space-y-5">
                 <h2 className="font-bold text-slate-900 text-lg">Order Summary</h2>
 
@@ -214,19 +335,33 @@ const CheckoutPage = () => {
                   ))}
                 </div>
 
-                <div className="border-t border-gray-100 pt-4 flex justify-between items-baseline">
-                  <span className="font-semibold text-slate-900">Total</span>
-                  <span className="text-2xl font-bold text-slate-900">₦{totalPrice().toLocaleString()}</span>
+                <div className="border-t border-gray-100 pt-4 space-y-2 text-sm">
+                  <div className="flex justify-between text-gray-600">
+                    <span>Subtotal</span>
+                    <span>₦{subtotal.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between text-gray-600">
+                    <span>{method === "pickup" ? "Pickup" : "Delivery"}</span>
+                    <span>
+                      {quote && quote.ok
+                        ? quote.fee > 0 ? `₦${quote.fee.toLocaleString()}` : "Free"
+                        : "Choose your state"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-baseline pt-2 border-t border-gray-100">
+                    <span className="font-semibold text-slate-900">Total</span>
+                    <span className="text-2xl font-bold text-slate-900">₦{grandTotal.toLocaleString()}</span>
+                  </div>
                 </div>
 
                 <Button
                   onClick={handleCheckout}
-                  disabled={processing}
+                  disabled={!canPay}
                   size="lg"
                   className="hidden lg:flex w-full bg-slate-900 hover:bg-slate-800 text-white font-semibold h-12 rounded-xl disabled:opacity-60 items-center justify-center gap-2"
                 >
                   <Lock className="w-4 h-4" />
-                  {processing ? "Processing..." : `Pay ₦${totalPrice().toLocaleString()}`}
+                  {processing ? "Processing..." : `Pay ₦${grandTotal.toLocaleString()}`}
                 </Button>
 
                 <div className="flex items-center gap-2.5 text-xs text-gray-500 pt-1">

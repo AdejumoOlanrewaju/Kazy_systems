@@ -6,7 +6,8 @@ import { useCustomerAuth } from "@/lib/useCustomerAuth"
 import { getOrdersByEmail, Order } from "@/lib/orderService"
 import { Package, CheckCircle2, Truck, Clock, XCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
-
+import { buildProductUrl } from "@/lib/slug"
+import { orderStatusLabel } from "@/lib/delivery"
 const STATUS_CONFIG: Record<string, { label: string; icon: any; color: string }> = {
   pending: { label: "Payment Pending", icon: Clock, color: "text-yellow-600" },
   paid: { label: "Order Confirmed", icon: CheckCircle2, color: "text-green-600" },
@@ -87,25 +88,47 @@ const MyOrdersPage = () => {
                     </div>
                     <div className={`flex items-center gap-1.5 text-sm font-semibold ${config.color}`}>
                       <Icon className="w-4 h-4" />
-                      {config.label}
+                      {orderStatusLabel(order.status, order.delivery?.method)}
                     </div>
                   </div>
 
                   <div className="space-y-1.5 mb-4">
-                    {order.items.map((item) => (
+                    {order.items.map((item: any) => (
                       <div key={item.id} className="flex justify-between text-sm text-gray-700">
-                        <span>{item.name} × {item.quantity}</span>
-                        {item.configurationLabel && (
-                          <p className="text-xs text-gray-400">{item.configurationLabel}</p>
-                        )}
+                        <div>
+                          <span>{item.name} × {item.quantity}</span>
+                          {item.configurationLabel && <p className="text-xs text-gray-400">{item.configurationLabel}</p>}
+                          {order.status === "delivered" && (
+                            <Link
+                              href={`${buildProductUrl(item.name, item.productId || String(item.id).split("_")[0])}?order=${order.id}#reviews`}
+                              className="text-xs text-amber-600 underline"
+                            >
+                              Write a review
+                            </Link>
+                          )}
+                        </div>
                         <span>₦{(item.price * item.quantity).toLocaleString()}</span>
                       </div>
                     ))}
                   </div>
 
-                  <div className="border-t border-gray-100 pt-3 flex justify-between font-bold text-slate-900">
-                    <span>Total</span>
-                    <span>₦{order.total.toLocaleString()}</span>
+                  <div className="border-t border-gray-100 pt-3 space-y-1">
+                    {order.delivery && order.itemsTotal !== undefined && (
+                      <>
+                        <div className="flex justify-between text-sm text-gray-600">
+                          <span>Items</span>
+                          <span>₦{order.itemsTotal.toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between text-sm text-gray-600">
+                          <span>{order.delivery.method === "pickup" ? "Pickup" : "Delivery"}</span>
+                          <span>{order.delivery.fee > 0 ? `₦${order.delivery.fee.toLocaleString()}` : "Free"}</span>
+                        </div>
+                      </>
+                    )}
+                    <div className="flex justify-between font-bold text-slate-900">
+                      <span>Total</span>
+                      <span>₦{order.total.toLocaleString()}</span>
+                    </div>
                   </div>
                 </div>
               )

@@ -129,7 +129,7 @@ const CartPage = () => {
                 </div>
                 <div className="flex justify-between text-gray-600">
                   <span>Delivery</span>
-                  <span className="text-green-600 font-medium">Calculated at checkout</span>
+                  <span className="text-green-500">Chosen at checkout</span>
                 </div>
               </div>
 

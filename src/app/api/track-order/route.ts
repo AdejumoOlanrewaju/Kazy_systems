@@ -27,9 +27,12 @@ export async function POST(req: NextRequest) {
         id: snap.id,
         status: data.status,
         total: data.total,
+        itemsTotal: data.itemsTotal ?? null,
         items: data.items,
         customerName: data.customerName,
         address: data.address,
+        delivery: data.delivery ?? null,
+        shipping: data.shipping ?? null,
         createdAt: data.createdAt?.toDate?.() ? data.createdAt.toDate().toISOString() : null,
       },
     });

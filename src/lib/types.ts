@@ -32,8 +32,8 @@ export interface FormState {
   oldPrice: string;
   images: string[];
   // specs: string;
-  rating: string;
-  reviews: string;
+  // rating: string;
+  // reviews: string;
   stockQuantity: string;
   tag: string;
   description: string;

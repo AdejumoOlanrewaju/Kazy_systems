@@ -7,6 +7,9 @@ import {
     ShoppingBag,
     User,
     Laptop,
+    Star,
+    Tag,
+    Truck,
 } from "lucide-react";
 import Link from 'next/link';
 import { signOut } from "firebase/auth";
@@ -25,9 +28,12 @@ const SidebarAdmin = () => {
     const menuItems = [
         { icon: LayoutDashboard, label: 'Dashboard', link: "/admin" },
         { icon: Package, label: 'Products', badge: laptopStoreData.length, link: "/admin/product" },
-        { icon: ShoppingBag, label: 'Deals', link: "/admin/deals" },
+        { icon: Tag, label: 'Deals', link: "/admin/deals" },
         { icon: User, label: 'Leads', link: "/admin/leads" },
         { icon: ShoppingBag, label: 'Orders', link: "/admin/orders" },
+        { icon: Star, label: 'Reviews', active: false, link: "/admin/reviews" },
+        { icon: Truck, label: 'Delivery', active: false, link: "/admin/delivery" },
+
     ];
 
     const handleLogout = async () => {
@@ -101,7 +107,7 @@ const SidebarAdmin = () => {
 
                 {/* User Profile */}
                 <div className="p-4 border-t border-neutral-900">
-                    <div className={`w-full flex items-center gap-3 rounded-xl text-neutral-400 py-3 px-2 ${isOpen ? 'justify-start': 'justify-center'} hover:bg-neutral-900 transition-colors`}>
+                    <div className={`w-full flex items-center gap-3 rounded-xl text-neutral-400 py-3 px-2 ${isOpen ? 'justify-start' : 'justify-center'} hover:bg-neutral-900 transition-colors`}>
                         <div className="w-8 h-8 bg-gradient-to-br from-amber-400 to-amber-600 rounded-full flex items-center justify-center flex-shrink-0 text-neutral-950 font-bold text-sm">
                             {initials}
                         </div>
