@@ -48,7 +48,7 @@ const CheckoutPage = () => {
 
       clearCart()
       toast.success("Payment successful!")
-      router.push(`/orderConfirmation?orderId=${orderId}`)
+      router.push(`/order-confirmation?orderId=${orderId}`)
     } catch {
       toast.error(
         `We received your payment (ref: ${reference}) but couldn't confirm your order yet. Please don't pay again — contact us with this reference.`,
@@ -148,7 +148,7 @@ const CheckoutPage = () => {
           </Link>
           <h1 className="text-3xl font-bold text-slate-900 mb-8">Checkout</h1>
 
-          <div className="grid lg:grid-cols-3 gap-8 items-start">
+          <div className="lg:grid lg:grid-cols-3 gap-8 items-start">
             <form onSubmit={handleCheckout} className="lg:col-span-2 space-y-6">
               <div className="bg-white border border-gray-200 rounded-2xl p-6 space-y-5">
                 <h2 className="font-bold text-slate-900 flex items-center gap-2">
@@ -192,7 +192,7 @@ const CheckoutPage = () => {
               </Button>
             </form>
 
-            <div className="lg:sticky lg:top-24">
+            <div className="lg:sticky lg:top-24 lg:mt-0 mt-4">
               <div className="bg-white border border-gray-200 rounded-2xl p-6 space-y-5">
                 <h2 className="font-bold text-slate-900 text-lg">Order Summary</h2>
 

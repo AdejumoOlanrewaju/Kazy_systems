@@ -20,7 +20,7 @@ const ConfirmationContent = () => {
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6 text-left">
           <p className="text-xs text-amber-700 font-semibold mb-1">⚠️ Save this Order ID — you'll need it to track your order</p>
           <p className="font-mono text-sm text-slate-900 select-all">{orderId}</p>
-          <Link href="/trackOrder" className="text-xs text-amber-700 underline mt-2 inline-block">
+          <Link href="/track-order" className="text-xs text-amber-700 underline mt-2 inline-block">
             Track your order status anytime
           </Link>
         </div>
