@@ -1,9 +1,11 @@
 "use client"
-import React, { useState } from "react"
+import React, { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Package, Search, CheckCircle2, Truck, Clock, XCircle } from "lucide-react"
 import { orderStatusLabel } from "@/lib/delivery"
+import { useCustomerAuth } from "@/lib/useCustomerAuth"
+import Link from "next/link"
 
 type TrackedOrder = {
   id: string
@@ -63,6 +65,16 @@ const TrackOrderPage = () => {
   }
 
   const currentStepIndex = order ? STATUS_STEPS.indexOf(order.status) : -1
+  const { user } = useCustomerAuth()
+
+  useEffect(() => {
+    const fromLink = new URLSearchParams(window.location.search).get("orderId")
+    if (fromLink) setOrderId(fromLink)
+  }, [])
+
+  useEffect(() => {
+    if (user?.email) setEmail((e) => e || user.email!)
+  }, [user])
 
   return (
     <div className="bg-gray-50 min-h-screen">
@@ -72,6 +84,13 @@ const TrackOrderPage = () => {
           <h1 className="text-3xl font-bold text-slate-900 mb-2">Track Your Order</h1>
           <p className="text-gray-500">Enter your order ID and the email you used at checkout.</p>
         </div>
+
+        {user && (
+          <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-sm text-slate-700 mb-6">
+            You're signed in — all your orders, with delivery details, are in{" "}
+            <Link href="/my-orders" className="font-semibold underline">My Orders</Link>.
+          </div>
+        )}
 
         <form onSubmit={handleTrack} className="bg-white border border-gray-200 rounded-2xl p-6 space-y-4 mb-8">
           <div>

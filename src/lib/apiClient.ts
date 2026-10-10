@@ -13,11 +13,9 @@ const MESSAGES = {
   server: "Something went wrong on our side. Please try again in a moment.",
 }
 
-type PostOptions = { headers?: Record<string, string>; timeoutMs?: number }
+type Options = { headers?: Record<string, string>; timeoutMs?: number }
 
-// POSTs JSON and returns parsed JSON. Every failure becomes an ApiError whose
-// message is safe to show a customer.
-export async function postJson<T = any>(url: string, body: unknown, options: PostOptions = {}): Promise<T> {
+async function request<T>(method: "GET" | "POST", url: string, body: unknown, options: Options): Promise<T> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), options.timeoutMs ?? 25000)
 
@@ -27,9 +25,13 @@ export async function postJson<T = any>(url: string, body: unknown, options: Pos
 
   try {
     const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", ...options.headers },
-      body: JSON.stringify(body),
+      method,
+      headers: {
+        ...(method === "POST" ? { "Content-Type": "application/json" } : {}),
+        ...options.headers,
+      },
+      body: method === "POST" ? JSON.stringify(body) : undefined,
+      cache: "no-store",
       signal: controller.signal,
     })
     status = res.status
@@ -58,3 +60,9 @@ export async function postJson<T = any>(url: string, body: unknown, options: Pos
   if (data === null) throw new ApiError(MESSAGES.server, status)
   return data as T
 }
+
+export const postJson = <T = any>(url: string, body: unknown, options: Options = {}) =>
+  request<T>("POST", url, body, options)
+
+export const getJson = <T = any>(url: string, options: Options = {}) =>
+  request<T>("GET", url, undefined, options)

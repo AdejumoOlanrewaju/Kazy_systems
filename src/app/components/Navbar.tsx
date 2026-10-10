@@ -26,8 +26,8 @@ const Navbar = () => {
         { name: 'Repair PC', href: '/repair' },
         { name: 'Deals', href: '/deals' },
         { name: 'Contact', href: '/contact' },
-        // { name: 'Track Order', href: '/track-order' },
-    ];
+        user ? { name: 'My Orders', href: '/my-orders' } : { name: 'Track Order', href: '/track-order' },
+    ]
 
     const isActive = (href: string) => pathname === href;
 
@@ -125,6 +125,14 @@ const Navbar = () => {
                                             <div className="fixed inset-0 z-10" onClick={() => setAccountMenuOpen(false)} />
                                             <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-xl shadow-lg py-1 z-20">
                                                 <p className="px-4 py-2 text-xs text-gray-400 truncate border-b border-gray-100">{user.email}</p>
+                                                <Link
+                                                    href="/account"
+                                                    onClick={() => setAccountMenuOpen(false)}
+                                                    className="flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50"
+                                                >
+                                                    <User className="w-4 h-4" />
+                                                    My Account
+                                                </Link>
                                                 <Link
                                                     href="/my-orders"
                                                     onClick={() => setAccountMenuOpen(false)}

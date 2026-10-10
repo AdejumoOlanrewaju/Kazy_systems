@@ -36,7 +36,7 @@ const SignInPage = () => {
         try {
             await signInWithGoogle()
             toast.success("Signed in!")
-            router.push("/")
+            goNext();
         } catch (err) {
             if (isAuthCancelled(err)) return
             toast.error(friendlyAuthError(err))
@@ -50,7 +50,7 @@ const SignInPage = () => {
         try {
             await signInWithFacebook()
             toast.success("Signed in!")
-            router.push("/")
+            goNext();
         } catch (err) {
             if (isAuthCancelled(err)) return
             toast.error(friendlyAuthError(err))
@@ -79,12 +79,17 @@ const SignInPage = () => {
         try {
             await verifySignInCode(email, code)
             toast.success("Signed in!")
-            router.push("/")
+            goNext();
         } catch (err: any) {
             toast.error(friendlyAuthError(err))
         } finally {
             setLoading(false)
         }
+    }
+
+    const goNext = () => {
+        const next = new URLSearchParams(window.location.search).get("next") || "/"
+        router.push(next.startsWith("/") && !next.startsWith("//") ? next : "/")
     }
 
     return (

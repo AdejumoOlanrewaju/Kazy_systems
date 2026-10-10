@@ -11,7 +11,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { toast } from "sonner"
 import { ArrowLeft, Lock, ShieldCheck, User, MapPin, Truck, Store } from "lucide-react"
-
+import { useCustomerAuth } from "@/lib/useCustomerAuth"
+import { getProfile, saveProfile } from "@/lib/profileService"
 declare global {
   interface Window {
     PaystackPop: any
@@ -37,9 +38,8 @@ const OptionCard = ({
     type="button"
     onClick={onClick}
     disabled={disabled}
-    className={`text-left rounded-xl border-2 p-4 transition-colors ${
-      active ? "border-slate-900 bg-slate-50" : "border-gray-200 hover:border-gray-300"
-    } ${disabled ? "opacity-50 cursor-not-allowed" : ""}`}
+    className={`text-left rounded-xl border-2 p-4 transition-colors ${active ? "border-slate-900 bg-slate-50" : "border-gray-200 hover:border-gray-300"
+      } ${disabled ? "opacity-50 cursor-not-allowed" : ""}`}
   >
     <div className="flex items-center gap-2 font-semibold text-slate-900">
       {icon}
@@ -72,6 +72,37 @@ const CheckoutPage = () => {
     if (!configured && settings.pickup.enabled) setMethod("pickup")
     else if (configured && !settings.pickup.enabled) setMethod("delivery")
   }, [settingsLoading, configured, settings.pickup.enabled])
+
+  const { user, loading: authLoading } = useCustomerAuth()
+  const prefilled = useRef(false)
+
+  // Signed-in customers: fill in what we already know.
+  useEffect(() => {
+    if (!user) {
+      prefilled.current = false
+      return
+    }
+    if (prefilled.current) return
+    prefilled.current = true
+
+    setForm((f) => ({
+      ...f,
+      email: user.email ?? f.email,
+      customerName: f.customerName || user.displayName || "",
+    }))
+    getProfile(user.uid)
+      .then((p) => {
+        if (!p) return
+        setForm((f) => ({
+          ...f,
+          customerName: p.name || f.customerName,
+          phone: p.phone || f.phone,
+          address: p.address || f.address,
+        }))
+        if (p.state) setState((s) => s || p.state)
+      })
+      .catch(() => { })
+  }, [user])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
@@ -137,9 +168,13 @@ const CheckoutPage = () => {
     // The server prices the items AND delivery, checks stock, and creates the order.
     let init: { orderId: string; reference: string; amountKobo: number; email: string }
     try {
+      const token = user ? await user.getIdToken() : null
       const res = await fetch("/api/checkout/init", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({
           items: items.map((i) => ({
             productId: i.productId,
@@ -160,6 +195,13 @@ const CheckoutPage = () => {
         return
       }
       init = data
+      if (user) {
+        saveProfile(user.uid, {
+          name: form.customerName,
+          phone: form.phone,
+          ...(method === "delivery" ? { state, address: form.address } : {}),
+        }).catch(() => { })
+      }
     } catch {
       toast.error("Network problem. Please try again.")
       setProcessing(false)
@@ -204,6 +246,13 @@ const CheckoutPage = () => {
           </Link>
           <h1 className="text-3xl font-bold text-slate-900 mb-8">Checkout</h1>
 
+          {!authLoading && !user && (
+            <div className="flex items-center justify-between gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-900">
+              <span>Have an account? Sign in to fill in your details and track this order in My Orders.</span>
+              <Link href="/sign-in?next=/checkout" className="font-semibold underline whitespace-nowrap">Sign in</Link>
+            </div>
+          )}
+
           <div className="grid lg:grid-cols-3 gap-8 items-start">
             <form onSubmit={handleCheckout} className="lg:col-span-2 space-y-6">
               <div className="bg-white border border-gray-200 rounded-2xl p-6 space-y-5">
@@ -218,8 +267,19 @@ const CheckoutPage = () => {
                 <div className="grid sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-600 mb-1.5">Email *</label>
-                    <Input name="email" type="email" value={form.email} onChange={handleChange} placeholder="john@example.com" required className="h-11" />
-                  </div>
+                    <Input
+                      name="email"
+                      type="email"
+                      value={form.email}
+                      onChange={handleChange}
+                      readOnly={!!user}
+                      placeholder="john@example.com"
+                      required
+                      className={`h-11 ${user ? "bg-gray-50 text-gray-500" : ""}`}
+                    />
+                    {user && (
+                      <p className="text-xs text-gray-400 mt-1">Your account email, so this order shows up in My Orders.</p>
+                    )}                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-600 mb-1.5">Phone Number *</label>
                     <Input name="phone" type="tel" value={form.phone} onChange={handleChange} placeholder="+234 XXX XXX XXXX" required className="h-11" />

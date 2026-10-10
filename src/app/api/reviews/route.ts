@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebaseAdmin";
 
+// Never cache: a newly approved review must show up immediately.
+export const dynamic = "force-dynamic";
+
 export async function GET(req: NextRequest) {
   try {
     const productId = req.nextUrl.searchParams.get("productId");
@@ -40,7 +43,10 @@ export async function GET(req: NextRequest) {
     const count = reviews.length;
     const average = count ? Math.round((sum / count) * 10) / 10 : 0;
 
-    return NextResponse.json({ reviews, summary: { average, count, distribution } });
+    return NextResponse.json(
+      { reviews, summary: { average, count, distribution } },
+      { headers: { "Cache-Control": "no-store" } }
+    );
   } catch (error) {
     console.error("Fetch reviews failed:", error);
     return NextResponse.json({ error: "Could not load reviews" }, { status: 500 });

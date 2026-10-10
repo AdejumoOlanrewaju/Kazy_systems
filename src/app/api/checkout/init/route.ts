@@ -4,6 +4,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { getEffectivePrice, getConfigurationLabel } from "@/lib/productDisplay";
 import { computeDelivery } from "@/lib/delivery";
 import { loadDeliverySettings } from "@/lib/server/delivery";
+import { adminAuth } from "@/lib/firebaseAdmin";
 
 type InItem = { productId: string; configurationId?: string; quantity: number };
 
@@ -13,12 +14,25 @@ const fail = (error: string, status = 400, code?: string) =>
 export async function POST(req: NextRequest) {
   try {
     const { items, customer, delivery, expectedTotal } = await req.json();
-
+    // A signed-in customer's order is tied to their account, and their email comes
+    // from the verified token, never from the form.
+    let userId: string | null = null;
+    let verifiedEmail: string | null = null;
+    const authHeader = req.headers.get("authorization");
+    if (authHeader?.startsWith("Bearer ")) {
+      try {
+        const decoded = await adminAuth.verifyIdToken(authHeader.slice(7));
+        userId = decoded.uid;
+        verifiedEmail = decoded.email?.toLowerCase() ?? null;
+      } catch {
+        // expired or invalid token: carry on as a guest
+      }
+    }
     // ---- validate input shape ----
     if (!Array.isArray(items) || items.length === 0 || items.length > 20) return fail("Your cart is empty.");
 
     const name = String(customer?.customerName || "").trim();
-    const email = String(customer?.email || "").trim().toLowerCase();
+    const email = verifiedEmail ?? String(customer?.email || "").trim().toLowerCase();
     const phone = String(customer?.phone || "").trim();
     const rawAddress = String(customer?.address || "").trim();
     if (!name || !phone || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
@@ -126,6 +140,7 @@ export async function POST(req: NextRequest) {
       address: method === "pickup"
         ? settings.pickup.address ? `Pickup — ${settings.pickup.address}` : "Pickup at shop"
         : `${rawAddress}, ${quote.state}`,
+      ...(userId ? { userId } : {}),
       status: "pending",
       reference,
       createdAt: FieldValue.serverTimestamp(),

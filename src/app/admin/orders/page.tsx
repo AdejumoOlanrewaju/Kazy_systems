@@ -5,7 +5,7 @@ import { orderStatusLabel } from "@/lib/delivery"
 import RecoverPayment from "@/app/components/RecoverPayment"
 import { MessageCircle, Package, Store, Truck } from "lucide-react"
 import { toast } from "sonner"
-
+import { buildProductUrl } from "@/lib/slug"
 const STATUS_COLORS: Record<OrderStatus, string> = {
   pending: "bg-yellow-100 text-yellow-700",
   paid: "bg-green-100 text-green-700",
@@ -46,6 +46,13 @@ const ShippingPanel = ({ order }: { order: Order }) => {
   }
 
   const buildMessage = () => {
+    if (order.status === "delivered") {
+      const firstItem = order.items[0]
+      const link = firstItem
+        ? `${window.location.origin}${buildProductUrl(firstItem.name, firstItem.productId)}#reviews`
+        : window.location.origin
+      return `Hi ${order.customerName.split(" ")[0]}, thank you for shopping with Kayzee Global! We hope you're enjoying your order. If you have a minute, a quick review helps other buyers: ${link}`
+    }
     const first = order.customerName.split(" ")[0]
     const track = `Track your order any time: ${window.location.origin}/track-order (Order ID: ${order.id})`
     if (order.status === "paid") {
@@ -58,9 +65,8 @@ const ShippingPanel = ({ order }: { order: Order }) => {
     const date = expectedDate
       ? new Date(expectedDate).toLocaleDateString("en-NG", { dateStyle: "medium" })
       : ""
-    return `Hi ${first}, your order has been shipped${courier ? ` via ${courier}` : ""}.${
-      trackingNumber ? ` Tracking/waybill: ${trackingNumber}.` : ""
-    }${date ? ` Expected delivery: ${date}.` : ""} ${track}`
+    return `Hi ${first}, your order has been shipped${courier ? ` via ${courier}` : ""}.${trackingNumber ? ` Tracking/waybill: ${trackingNumber}.` : ""
+      }${date ? ` Expected delivery: ${date}.` : ""} ${track}`
   }
 
   const messageCustomer = () =>
@@ -155,9 +161,8 @@ export default function OrdersPage() {
           <button
             key={f}
             onClick={() => setFilter(f)}
-            className={`px-4 py-2 rounded-lg text-sm font-semibold capitalize ${
-              filter === f ? "bg-black text-white" : "bg-white border border-gray-200 text-gray-700"
-            }`}
+            className={`px-4 py-2 rounded-lg text-sm font-semibold capitalize ${filter === f ? "bg-black text-white" : "bg-white border border-gray-200 text-gray-700"
+              }`}
           >
             {f}
           </button>

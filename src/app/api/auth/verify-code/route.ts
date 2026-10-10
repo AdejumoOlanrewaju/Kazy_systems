@@ -46,6 +46,13 @@ export async function POST(req: NextRequest) {
       userRecord = await adminAuth.createUser({ email: normalizedEmail, emailVerified: true });
     }
 
+    if (userRecord.customClaims?.admin) {
+      return NextResponse.json(
+        { error: "This email belongs to the admin account. Please sign in with your password." },
+        { status: 403 }
+      );
+    }
+
     // Mint a custom token — the client exchanges this for a real signed-in session.
     const customToken = await adminAuth.createCustomToken(userRecord.uid);
 

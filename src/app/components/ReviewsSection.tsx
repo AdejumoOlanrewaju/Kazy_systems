@@ -1,11 +1,14 @@
 "use client"
 import React, { useCallback, useEffect, useState } from "react"
+import Link from "next/link"
+import { usePathname } from "next/navigation"
 import { BadgeCheck, Star } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { toast } from "sonner"
 import { useCustomerAuth } from "@/lib/useCustomerAuth"
+import { ApiError, getJson, postJson } from "@/lib/apiClient"
 
 type PublicReview = {
   id: string
@@ -16,6 +19,9 @@ type PublicReview = {
   createdAt: string | null
 }
 type Summary = { average: number; count: number; distribution: number[] } // index 0 = 5 stars
+type Eligibility = { state: "can_review" | "already_reviewed" | "awaiting_delivery" | "no_order"; orderId?: string }
+
+const EMPTY_SUMMARY: Summary = { average: 0, count: 0, distribution: [0, 0, 0, 0, 0] }
 
 const Stars = ({ value, className = "w-4 h-4" }: { value: number; className?: string }) => (
   <div className="flex items-center gap-0.5">
@@ -29,24 +35,31 @@ const Stars = ({ value, className = "w-4 h-4" }: { value: number; className?: st
 )
 
 const ReviewsSection = ({ productId }: { productId: string }) => {
-  const { user } = useCustomerAuth()
+  const pathname = usePathname()
+  const { user, loading: authLoading } = useCustomerAuth()
+
   const [reviews, setReviews] = useState<PublicReview[]>([])
-  const [summary, setSummary] = useState<Summary>({ average: 0, count: 0, distribution: [0, 0, 0, 0, 0] })
+  const [summary, setSummary] = useState<Summary>(EMPTY_SUMMARY)
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState("")
+  const [eligibility, setEligibility] = useState<Eligibility | null>(null)
   const [showForm, setShowForm] = useState(false)
+  const [manualMode, setManualMode] = useState(false) // review using an order ID instead
   const [submitted, setSubmitted] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [hoverRating, setHoverRating] = useState(0)
   const [form, setForm] = useState({ orderId: "", email: "", rating: 0, title: "", comment: "" })
 
   const load = useCallback(async () => {
+    setLoadError("")
     try {
-      const res = await fetch(`/api/reviews?productId=${encodeURIComponent(productId)}`)
-      const data = await res.json()
+      const data = await getJson<{ reviews: PublicReview[]; summary: Summary }>(
+        `/api/reviews?productId=${encodeURIComponent(productId)}`
+      )
       setReviews(data.reviews || [])
       if (data.summary) setSummary(data.summary)
     } catch (err) {
-      console.error("Could not load reviews", err)
+      setLoadError(err instanceof ApiError ? err.message : "Couldn't load reviews.")
     } finally {
       setLoading(false)
     }
@@ -56,7 +69,7 @@ const ReviewsSection = ({ productId }: { productId: string }) => {
     load()
   }, [load])
 
-  // Coming from "My Orders" (?order=ID) opens the form with the order filled in.
+  // Coming from a link with ?order=ID opens the form with the order filled in.
   useEffect(() => {
     const orderFromLink = new URLSearchParams(window.location.search).get("order")
     if (orderFromLink) {
@@ -65,10 +78,35 @@ const ReviewsSection = ({ productId }: { productId: string }) => {
     }
   }, [])
 
-  // Signed-in customers get their email filled in.
+  // Signed-in customers: ask the server whether they can review this product.
+  useEffect(() => {
+    if (authLoading) return
+    if (!user) {
+      setEligibility(null)
+      return
+    }
+    let active = true
+    user
+      .getIdToken()
+      .then((token) =>
+        getJson<Eligibility>(`/api/reviews/eligible?productId=${encodeURIComponent(productId)}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+      )
+      .then((e) => active && setEligibility(e))
+      .catch(() => active && setEligibility(null))
+    return () => {
+      active = false
+    }
+  }, [user, authLoading, productId, submitted])
+
   useEffect(() => {
     if (user?.email) setForm((f) => (f.email ? f : { ...f, email: user.email! }))
   }, [user])
+
+  const state = eligibility?.state
+  const oneTap = !!user && state === "can_review" && !manualMode
+  const guestFormOpen = showForm && !oneTap
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -78,20 +116,25 @@ const ReviewsSection = ({ productId }: { productId: string }) => {
     }
     setSubmitting(true)
     try {
-      const res = await fetch("/api/reviews/submit", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ productId, ...form }),
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        toast.error(data.error || "Couldn't submit your review.")
-        return
+      const body: Record<string, unknown> = {
+        productId,
+        rating: form.rating,
+        title: form.title,
+        comment: form.comment,
       }
+      const headers: Record<string, string> = {}
+      if (oneTap && user) {
+        headers.Authorization = `Bearer ${await user.getIdToken()}`
+      } else {
+        body.orderId = form.orderId
+        body.email = form.email
+      }
+      await postJson("/api/reviews/submit", body, { headers })
       setSubmitted(true)
       setShowForm(false)
-    } catch {
-      toast.error("Network problem. Please try again.")
+      setForm((f) => ({ ...f, rating: 0, title: "", comment: "" }))
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Couldn't submit your review.")
     } finally {
       setSubmitting(false)
     }
@@ -101,6 +144,53 @@ const ReviewsSection = ({ productId }: { productId: string }) => {
     iso ? new Date(iso).toLocaleDateString("en-NG", { year: "numeric", month: "short", day: "numeric" }) : ""
 
   const shownRating = hoverRating || form.rating
+
+  const RatingInput = (
+    <div>
+      <label className="block text-sm font-medium text-gray-600 mb-1.5">Your rating *</label>
+      <div className="flex items-center gap-1" onMouseLeave={() => setHoverRating(0)}>
+        {[1, 2, 3, 4, 5].map((n) => (
+          <button
+            key={n}
+            type="button"
+            onMouseEnter={() => setHoverRating(n)}
+            onClick={() => setForm({ ...form, rating: n })}
+            className="p-0.5"
+            aria-label={`${n} star${n > 1 ? "s" : ""}`}
+          >
+            <Star className={`w-8 h-8 transition-colors ${n <= shownRating ? "fill-amber-500 text-amber-500" : "text-gray-300"}`} />
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+
+  const TextInputs = (
+    <>
+      <div>
+        <label className="block text-sm font-medium text-gray-600 mb-1.5">Title (optional)</label>
+        <Input
+          value={form.title}
+          maxLength={80}
+          onChange={(e) => setForm({ ...form, title: e.target.value })}
+          placeholder="Sum it up in a few words"
+          className="h-11 bg-white"
+        />
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-gray-600 mb-1.5">Your review *</label>
+        <Textarea
+          value={form.comment}
+          maxLength={1000}
+          rows={4}
+          onChange={(e) => setForm({ ...form, comment: e.target.value })}
+          placeholder="How is the laptop? Battery, screen, speed, condition..."
+          required
+          className="bg-white"
+        />
+      </div>
+    </>
+  )
 
   return (
     <section id="reviews" className="mt-16 pt-10 border-t border-gray-200">
@@ -118,16 +208,59 @@ const ReviewsSection = ({ productId }: { productId: string }) => {
               </div>
             </div>
           ) : (
-            <p className="text-gray-500">No reviews yet — be the first after you've received your order.</p>
+            !loadError &&
+            !loading && <p className="text-gray-500">No reviews yet.</p>
           )}
         </div>
 
-        {!showForm && !submitted && (
-          <Button onClick={() => setShowForm(true)} className="bg-slate-900 hover:bg-slate-800 text-white">
-            Write a review
-          </Button>
+        {/* Call to action, depending on who is looking */}
+        {!submitted && !showForm && (
+          <div className="text-right max-w-xs">
+            {user && state === "already_reviewed" && (
+              <p className="text-sm text-gray-500">You've reviewed this laptop. Thank you!</p>
+            )}
+            {user && state === "awaiting_delivery" && (
+              <p className="text-sm text-gray-500">You can review this laptop once your order has been delivered.</p>
+            )}
+            {user && state === "no_order" && (
+              <div className="space-y-2">
+                <p className="text-sm text-gray-500">Only customers who bought this laptop can review it.</p>
+                <button
+                  onClick={() => {
+                    setManualMode(true)
+                    setShowForm(true)
+                  }}
+                  className="text-sm underline text-gray-600"
+                >
+                  Bought as a guest? Use your order ID
+                </button>
+              </div>
+            )}
+            {(!user || state === "can_review" || state === undefined) && (
+              <div className="space-y-2">
+                <Button onClick={() => setShowForm(true)} className="bg-slate-900 hover:bg-slate-800 text-white">
+                  Write a review
+                </Button>
+                {!user && !authLoading && (
+                  <p className="text-xs text-gray-400">
+                    <Link href={`/sign-in?next=${encodeURIComponent(pathname)}`} className="underline">
+                      Sign in
+                    </Link>{" "}
+                    to review in one tap
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
         )}
       </div>
+
+      {loadError && (
+        <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl p-4 text-sm mb-6 flex items-center justify-between gap-3">
+          <span>{loadError}</span>
+          <Button size="sm" variant="outline" onClick={load}>Try again</Button>
+        </div>
+      )}
 
       {summary.count > 0 && (
         <div className="max-w-sm space-y-1.5 mb-8">
@@ -152,92 +285,53 @@ const ReviewsSection = ({ productId }: { productId: string }) => {
         </div>
       )}
 
-      {showForm && (
+      {/* One-tap form for signed-in verified buyers */}
+      {showForm && oneTap && (
         <form onSubmit={handleSubmit} className="bg-gray-50 border border-gray-200 rounded-2xl p-6 space-y-4 mb-10 max-w-2xl">
           <div>
             <h3 className="font-bold text-slate-900">Write your review</h3>
-            <p className="text-sm text-gray-500 mt-1">
-              To keep reviews honest, we check your order. Use the order ID from your confirmation page or{" "}
-              <a href="/my-orders" className="underline">My Orders</a>, and the email you used at checkout. Orders can be
-              reviewed once delivered.
+            <p className="text-sm text-gray-500 mt-1 flex items-center gap-1">
+              <BadgeCheck className="w-4 h-4 text-emerald-600" /> We've matched this to your delivered order.
             </p>
           </div>
-
-          <div className="grid sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-600 mb-1.5">Order ID *</label>
-              <Input
-                value={form.orderId}
-                onChange={(e) => setForm({ ...form, orderId: e.target.value })}
-                required
-                className="h-11 bg-white"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-600 mb-1.5">Checkout email *</label>
-              <Input
-                type="email"
-                value={form.email}
-                onChange={(e) => setForm({ ...form, email: e.target.value })}
-                required
-                className="h-11 bg-white"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-600 mb-1.5">Your rating *</label>
-            <div className="flex items-center gap-1" onMouseLeave={() => setHoverRating(0)}>
-              {[1, 2, 3, 4, 5].map((n) => (
-                <button
-                  key={n}
-                  type="button"
-                  onMouseEnter={() => setHoverRating(n)}
-                  onClick={() => setForm({ ...form, rating: n })}
-                  className="p-0.5"
-                  aria-label={`${n} star${n > 1 ? "s" : ""}`}
-                >
-                  <Star
-                    className={`w-8 h-8 transition-colors ${
-                      n <= shownRating ? "fill-amber-500 text-amber-500" : "text-gray-300"
-                    }`}
-                  />
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-600 mb-1.5">Title (optional)</label>
-            <Input
-              value={form.title}
-              maxLength={80}
-              onChange={(e) => setForm({ ...form, title: e.target.value })}
-              placeholder="Sum it up in a few words"
-              className="h-11 bg-white"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-600 mb-1.5">Your review *</label>
-            <Textarea
-              value={form.comment}
-              maxLength={1000}
-              rows={4}
-              onChange={(e) => setForm({ ...form, comment: e.target.value })}
-              placeholder="How is the laptop? Battery, screen, speed, condition..."
-              required
-              className="bg-white"
-            />
-          </div>
-
+          {RatingInput}
+          {TextInputs}
           <div className="flex gap-3">
             <Button type="submit" disabled={submitting} className="bg-slate-900 hover:bg-slate-800 text-white disabled:opacity-60">
               {submitting ? "Submitting..." : "Submit review"}
             </Button>
-            <Button type="button" variant="outline" onClick={() => setShowForm(false)}>
-              Cancel
+            <Button type="button" variant="outline" onClick={() => setShowForm(false)}>Cancel</Button>
+          </div>
+        </form>
+      )}
+
+      {/* Order ID form for guests */}
+      {guestFormOpen && (
+        <form onSubmit={handleSubmit} className="bg-gray-50 border border-gray-200 rounded-2xl p-6 space-y-4 mb-10 max-w-2xl">
+          <div>
+            <h3 className="font-bold text-slate-900">Write your review</h3>
+            <p className="text-sm text-gray-500 mt-1">
+              To keep reviews honest, we check your order. Use the order ID from your confirmation page and the email you
+              used at checkout. Orders can be reviewed once delivered.
+            </p>
+          </div>
+          <div className="grid sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-600 mb-1.5">Order ID *</label>
+              <Input value={form.orderId} onChange={(e) => setForm({ ...form, orderId: e.target.value })} required className="h-11 bg-white" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-600 mb-1.5">Checkout email *</label>
+              <Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required className="h-11 bg-white" />
+            </div>
+          </div>
+          {RatingInput}
+          {TextInputs}
+          <div className="flex gap-3">
+            <Button type="submit" disabled={submitting} className="bg-slate-900 hover:bg-slate-800 text-white disabled:opacity-60">
+              {submitting ? "Submitting..." : "Submit review"}
             </Button>
+            <Button type="button" variant="outline" onClick={() => setShowForm(false)}>Cancel</Button>
           </div>
         </form>
       )}

@@ -1,16 +1,15 @@
 "use client";
 import { useEffect, useState } from "react";
 import { onAuthStateChanged, User } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
 import { useRouter } from "next/navigation";
-import { auth, db } from "@/lib/firebase";
+import { auth } from "@/lib/firebase";
 
-const ADMIN_EMAIL = "admin_ademola@gmail.com";
-
+// Admin = a Firebase account carrying the `admin` custom claim (set once with
+// scripts/set-admin-claim.mjs). The claim is inside the signed ID token, so it
+// can't be faked from the browser.
 export const isAdminUser = async (user: User): Promise<boolean> => {
-  if (user.email === ADMIN_EMAIL) return true;
-  const docSnap = await getDoc(doc(db, "users", user.uid));
-  return docSnap.exists() && docSnap.data().role === "admin";
+  const token = await user.getIdTokenResult();
+  return token.claims.admin === true;
 };
 
 // Guards any admin page. Redirects non-admins away.

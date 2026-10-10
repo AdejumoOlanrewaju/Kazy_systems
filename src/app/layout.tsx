@@ -4,6 +4,7 @@ import "./global.css";
 import { Toaster } from "sonner"
 import PathnameWrapper from "./components/PathNameWrapper";
 import FetchDataStore from "./components/FetchDataStore";
+import CartSync from "./components/CartSync";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -84,6 +85,7 @@ export default function RootLayout({
       >
         <Toaster richColors position="top-center" />
         <FetchDataStore />
+        <CartSync/>
         <PathnameWrapper>
           {children}
         </PathnameWrapper>

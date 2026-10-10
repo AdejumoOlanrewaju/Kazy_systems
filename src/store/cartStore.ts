@@ -21,6 +21,7 @@ type CartStore = {
   removeItem: (id: string) => void;
   updateQuantity: (id: string, quantity: number) => void;
   syncPrices: (products: LaptopType[]) => void;
+  setItems: (items: CartItem[]) => void;
   clearCart: () => void;
   totalItems: () => number;
   totalPrice: () => number;
@@ -101,7 +102,9 @@ export const useCartStore = create<CartStore>()(
       },
 
       clearCart: () => set({ items: [] }),
-
+      
+      setItems: (items) => set({ items }),
+      
       totalItems: () => get().items.reduce((sum, i) => sum + i.quantity, 0),
 
       totalPrice: () => get().items.reduce((sum, i) => sum + i.price * i.quantity, 0),
