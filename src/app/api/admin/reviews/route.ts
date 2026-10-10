@@ -12,9 +12,9 @@ export async function POST(req: NextRequest) {
     if (!admin.ok) {
       return NextResponse.json({ error: admin.error }, { status: admin.status });
     }
-    
-    const { action, reviewId } = await req.json();
 
+    const { action, reviewId } = await req.json();
+    console.log(action)
     // Recompute every product's rating from approved reviews. Products with no
     // approved reviews go to 0 — this clears any hand-typed numbers.
     if (action === "recalculateAll") {
