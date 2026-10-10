@@ -1,17 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminAuth } from "@/lib/firebaseAdmin";
+// import { adminAuth } from "@/lib/firebaseAdmin";
 import { finalizeOrder } from "@/lib/server/finalizeOrder";
+import { requireAdmin } from "@/lib/server/requireAdmin";
 
-const ADMIN_EMAIL = "admin_kayzee@gmail.com";
+// const ADMIN_EMAIL = "admin_ademola@gmail.com";
 
 export async function POST(req: NextRequest) {
   try {
-    const authHeader = req.headers.get("authorization");
-    const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
-    if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-    const decoded = await adminAuth.verifyIdToken(token);
-    if (decoded.email !== ADMIN_EMAIL) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    const admin = await requireAdmin(req);
+    if (!admin.ok) {
+      return NextResponse.json({ error: admin.error }, { status: admin.status });
+    }
 
     const { orderId, reference } = await req.json();
     if (!orderId || !reference) {

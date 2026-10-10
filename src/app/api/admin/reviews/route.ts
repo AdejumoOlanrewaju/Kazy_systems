@@ -2,17 +2,17 @@ import { NextRequest, NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
 import { recalcProductRating } from "@/lib/server/reviews";
+import { requireAdmin } from "@/lib/server/requireAdmin";
 
-const ADMIN_EMAIL = "admin_ademola@gmail.com";
+// const ADMIN_EMAIL = "admin_ademola@gmail.com";
 
 export async function POST(req: NextRequest) {
   try {
-    const authHeader = req.headers.get("authorization");
-    const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
-    if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    const decoded = await adminAuth.verifyIdToken(token);
-    if (decoded.email !== ADMIN_EMAIL) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-
+    const admin = await requireAdmin(req);
+    if (!admin.ok) {
+      return NextResponse.json({ error: admin.error }, { status: admin.status });
+    }
+    
     const { action, reviewId } = await req.json();
 
     // Recompute every product's rating from approved reviews. Products with no
