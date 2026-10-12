@@ -211,13 +211,7 @@ const Navbar = () => {
                         {mounted && !authLoading && (
                             user ? (
                                 <>
-                                    <Link
-                                        href="/my-orders"
-                                        onClick={() => setMobileMenuOpen(false)}
-                                        className="block py-2 font-medium text-gray-700 hover:text-slate-900 w-fit"
-                                    >
-                                        My Orders
-                                    </Link>
+                                    
                                     <button
                                         onClick={() => { setMobileMenuOpen(false); handleSignOut(); }}
                                         className="block py-2 font-medium text-red-600 w-fit"
