@@ -50,7 +50,7 @@ const ConfirmationContent = () => {
         {user ? (
           <Link href="/my-orders"><Button variant="outline">View My Orders</Button></Link>
         ) : (
-          <Link href={orderId ? `/trackOrder?orderId=${orderId}` : "/trackOrder"}>
+          <Link href={orderId ? `/track-order?orderId=${orderId}` : "/track-order"}>
             <Button variant="outline">Track this order</Button>
           </Link>
         )}
