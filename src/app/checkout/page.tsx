@@ -247,7 +247,7 @@ const CheckoutPage = () => {
           <h1 className="text-3xl font-bold text-slate-900 mb-8">Checkout</h1>
 
           {!authLoading && !user && (
-            <div className="flex items-center justify-between gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-900">
+            <div className="flex items-center justify-between gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-900 mb-3">
               <span>Have an account? Sign in to fill in your details and track this order in My Orders.</span>
               <Link href="/sign-in?next=/checkout" className="font-semibold underline whitespace-nowrap">Sign in</Link>
             </div>
