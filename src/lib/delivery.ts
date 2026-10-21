@@ -113,6 +113,7 @@ export function orderStatusLabel(status: string, method?: DeliveryMethod): strin
     case "shipped": return pickup ? "Ready for pickup" : "Shipped"
     case "delivered": return pickup ? "Collected" : "Delivered"
     case "failed": return "Payment failed"
+    case "refunded": return "Order refunded"
     default: return status
   }
 }

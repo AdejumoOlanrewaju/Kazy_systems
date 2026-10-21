@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { useLaptopStore } from '@/store/laptopStore';
 import LoadingProduct from '../components/LoadingProduct';
 import { LaptopType } from '@/lib/types';
-import { getProductStock, getProductPrice, getPricing, getEffectivePrice } from '@/lib/productDisplay';
+import { getProductStock, getProductPrice, getPricing, getEffectivePrice, isDealLive } from '@/lib/productDisplay';
 const CATEGORIES = [
     { value: 'all', label: 'All Laptops' },
     { value: 'premium', label: 'Premium' },
@@ -129,7 +129,7 @@ const page = () => {
 
     // "Save up to X%" is computed from real live deals instead of a hardcoded number.
     const maxDealPercent = laptopStoreData
-        .filter((l) => l.isDeal && (!l.dealEndsAt || l.dealEndsAt > Date.now()))
+        .filter((l) => isDealLive(l) && (!l.dealEndsAt || l.dealEndsAt > Date.now()))
         .reduce((max, l) => Math.max(max, getPricing(l).percent), 0);
 
     const clearAllFilters = () => {

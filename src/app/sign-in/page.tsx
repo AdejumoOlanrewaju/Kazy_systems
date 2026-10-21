@@ -30,7 +30,7 @@ const SignInPage = () => {
     const [code, setCode] = useState("")
     const [loading, setLoading] = useState(false)
     const facebookEnabled = process.env.NEXT_PUBLIC_ENABLE_FACEBOOK_LOGIN === "true"
-
+    const emailCodeEnabled = process.env.NEXT_PUBLIC_ENABLE_EMAIL_CODE === "true"
     const handleGoogle = async () => {
         setLoading(true)
         try {
@@ -110,10 +110,11 @@ const SignInPage = () => {
                             <FacebookIcon />
                             Continue with Facebook
                         </Button>)}
-                        <Button onClick={() => setStep("email")} disabled={loading} variant="outline" className="w-full h-12 border-gray-300 font-medium gap-3">
-                            <Mail className="w-5 h-5 text-gray-500" />
+                        {emailCodeEnabled && (
+                            <Button onClick={() => setStep("email")} disabled={loading} variant="outline" className="w-full h-12 border-gray-300 font-medium gap-3">
+                                <Mail className="w-5 h-5 text-gray-500" />
                             Continue with Email
-                        </Button>
+                        </Button>)}
 
                         <p className="text-xs text-center text-gray-400 pt-4">
                             No account needed to buy — you can still{" "}

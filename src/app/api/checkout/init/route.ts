@@ -5,7 +5,7 @@ import { getEffectivePrice, getConfigurationLabel } from "@/lib/productDisplay";
 import { computeDelivery } from "@/lib/delivery";
 import { loadDeliverySettings } from "@/lib/server/delivery";
 import { adminAuth } from "@/lib/firebaseAdmin";
-
+import { clientKey, rateLimit, tooMany } from "@/lib/server/rateLimit";
 type InItem = { productId: string; configurationId?: string; quantity: number };
 
 const fail = (error: string, status = 400, code?: string) =>
@@ -13,7 +13,14 @@ const fail = (error: string, status = 400, code?: string) =>
 
 export async function POST(req: NextRequest) {
   try {
+    const limited = await rateLimit("checkout-init", clientKey(req), 10, 600);
+    if (!limited.ok) {
+      return tooMany(limited.retryAfter, "Too many checkout attempts. Please wait a few minutes and try again.");
+    }
     const { items, customer, delivery, expectedTotal } = await req.json();
+    if (typeof expectedTotal !== "number" || !Number.isFinite(expectedTotal)) {
+      return fail("We couldn't confirm your order total. Please refresh the page and try again.");
+    }
     // A signed-in customer's order is tied to their account, and their email comes
     // from the verified token, never from the form.
     let userId: string | null = null;
@@ -38,7 +45,9 @@ export async function POST(req: NextRequest) {
     if (!name || !phone || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return fail("Please fill in all your details correctly.");
     }
-
+    if (name.length > 100 || phone.length > 30 || rawAddress.length > 300 || email.length > 120) {
+      return fail("Some of your details are too long.");
+    }
     const method: "pickup" | "delivery" | null =
       delivery?.method === "pickup" ? "pickup" : delivery?.method === "delivery" ? "delivery" : null;
     if (!method) return fail("Please choose delivery or pickup.");
@@ -110,7 +119,7 @@ export async function POST(req: NextRequest) {
 
     // The customer saw a total on screen — if the real total differs
     // (a deal ended, a price or fee changed), make them confirm the new price.
-    if (typeof expectedTotal === "number" && expectedTotal !== total) {
+    if (expectedTotal !== total) {
       return fail("Prices were updated. Please review your order and try again.", 409, "PRICE_CHANGED");
     }
 

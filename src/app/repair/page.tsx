@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Award, Check, Mail, MessageCircle, Shield, Wrench, Zap } from "lucide-react"
 import { submitLead } from "@/lib/leadService"
 import { toast } from "sonner"
-
+import { postJson, ApiError } from "@/lib/apiClient"
 const Page = () => {
   const [repairForm, setRepairForm] = useState({
     name: "",
@@ -81,20 +81,20 @@ Description: ${repairForm.description}`
     try {
       // Save the lead the same way the WhatsApp path does.
       await submitLead("repair", repairForm)
+      await postJson("/api/notify-repair-lead", repairForm)
+      // const res = await fetch("/api/notify-repair-lead", {
+      //   method: "POST",
+      //   headers: { "Content-Type": "application/json" },
+      //   body: JSON.stringify(repairForm),
+      // })
 
-      const res = await fetch("/api/notify-repair-lead", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(repairForm),
-      })
-
-      if (!res.ok) throw new Error("Email send failed")
+      // if (!res.ok) throw new Error("Email send failed")
 
       toast.success("Request sent! Check your email for confirmation.")
       resetForm()
     } catch (err) {
       console.error("Failed to send repair request via email:", err)
-      toast.error("Couldn't send the email — please try WhatsApp instead, or check your connection.")
+      toast.error(err instanceof ApiError ? err.message : "Couldn't send the email. Please try WhatsApp instead.")
     } finally {
       setSubmittingVia(null)
     }

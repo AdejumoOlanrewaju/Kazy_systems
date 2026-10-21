@@ -1,32 +1,49 @@
 import { adminDb } from "@/lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
-import { Resend } from "resend";
+import { sendAdminEmail } from "@/lib/server/mailer";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
-const ADMIN_EMAIL = "olanrewajuadejumo56@gmail.com";
 const SITE_URL = "https://kazy-systems.vercel.app";
+
+// Statuses that mean "this order already went through": never re-process them.
+const DONE_STATUSES = ["paid", "shipped", "delivered", "refunded"];
 
 export type FinalizeResult =
   | { ok: true; alreadyPaid: boolean }
-  | { ok: false; error: string; status: number };
+  | { ok: false; error: string; status: number; paymentStatus?: string };
 
-const DONE_STATUSES = ["paid", "shipped", "delivered"];
+export type PaystackCheck =
+  | { kind: "success"; tx: any }
+  | { kind: "not_success"; status: string }
+  | { kind: "unknown" };
 
-async function fetchPaystackTransaction(reference: string) {
-  const res = await fetch(
-    `https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`,
-    {
-      headers: { Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}` },
-      cache: "no-store",
+// Asks Paystack what really happened to a payment. "unknown" means Paystack
+// couldn't be reached or answered oddly. Callers must NOT treat that as "unpaid".
+export async function verifyPaystackTransaction(reference: string): Promise<PaystackCheck> {
+  try {
+    const res = await fetch(
+      `https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`,
+      {
+        headers: { Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}` },
+        cache: "no-store",
+      }
+    );
+    const json = await res.json().catch(() => null);
+
+    if (res.ok && json?.data) {
+      return json.data.status === "success"
+        ? { kind: "success", tx: json.data }
+        : { kind: "not_success", status: String(json.data.status) };
     }
-  );
-  const json = await res.json().catch(() => null);
-  return json?.data ?? null;
+    if (res.status === 404) return { kind: "not_success", status: "not_found" };
+    return { kind: "unknown" };
+  } catch {
+    return { kind: "unknown" };
+  }
 }
 
 // Verifies a payment with Paystack and completes the order: marks it paid,
 // decrements stock atomically, and notifies the admin. Safe to call more than
-// once for the same order (the browser callback and the webhook both do).
+// once for the same order (browser, webhook and cleanup job all do).
 export async function finalizeOrder(orderId: string, reference: string): Promise<FinalizeResult> {
   const orderRef = adminDb.collection("orders").doc(orderId);
   const snap = await orderRef.get();
@@ -45,11 +62,21 @@ export async function finalizeOrder(orderId: string, reference: string): Promise
     return { ok: false, error: "This payment is already linked to another order", status: 409 };
   }
 
-  // Ask Paystack directly — never trust anything the browser says.
-  const tx = await fetchPaystackTransaction(reference);
-  if (!tx || tx.status !== "success") {
-    return { ok: false, error: "Payment not successful", status: 402 };
+  // Ask Paystack directly. Never trust anything the browser says.
+  const check = await verifyPaystackTransaction(reference);
+  if (check.kind === "unknown") {
+    return {
+      ok: false,
+      error: "We couldn't reach the payment provider. Please try again.",
+      status: 503,
+      paymentStatus: "unknown",
+    };
   }
+  if (check.kind === "not_success") {
+    return { ok: false, error: "Payment not successful", status: 402, paymentStatus: check.status };
+  }
+
+  const tx = check.tx;
   if (tx.amount !== Math.round(order.total * 100) || tx.currency !== "NGN") {
     console.error("Amount mismatch", { orderId, paid: tx.amount, expected: order.total * 100 });
     return { ok: false, error: "Amount paid does not match the order total", status: 400 };
@@ -70,8 +97,7 @@ export async function finalizeOrder(orderId: string, reference: string): Promise
 
     const items: any[] = fresh.data()!.items;
     const productIds = [...new Set(items.map((i) => i.productId as string))];
-    const productRefs = productIds.map((id) => adminDb.collection("products").doc(id));
-    const productSnaps = await t.getAll(...productRefs);
+    const productSnaps = await t.getAll(...productIds.map((id) => adminDb.collection("products").doc(id)));
 
     // Mutate in memory first (two lines may hit the same product), then write once.
     const products = new Map<string, any>();
@@ -127,17 +153,15 @@ async function notifyAdmin(orderId: string, order: any, shortages: string[]) {
     ? `Delivery address: ${order.address}`
     : d.method === "pickup"
       ? `HOW: PICKUP from the shop (no delivery fee)`
-      : `HOW: DELIVERY to ${d.state} — fee ₦${(d.fee || 0).toLocaleString()} (${d.eta || "no estimate"})\nDelivery address: ${order.address}`;
+      : `HOW: DELIVERY to ${d.state}, fee ₦${(d.fee || 0).toLocaleString()} (${d.eta || "no estimate"})\nDelivery address: ${order.address}`;
 
   const warning = shortages.length
-    ? `\n⚠️ STOCK PROBLEM: this order was paid but stock was already short for:\n${shortages.join("\n")}\nContact the customer or refund via Paystack.\n`
+    ? `\n⚠️ STOCK PROBLEM: this order was paid but stock was already short for:\n${shortages.join("\n")}\nContact the customer, or refund it from the order card: ${SITE_URL}/admin/orders\n`
     : "";
 
-  await resend.emails.send({
-    from: "Kayzee Orders <onboarding@resend.dev>",
-    to: ADMIN_EMAIL,
-    subject: `New Order — ₦${order.total.toLocaleString()} from ${order.customerName}`,
-    text: `New paid order received.
+  await sendAdminEmail(
+    `New Order — ₦${order.total.toLocaleString()} from ${order.customerName}`,
+    `New paid order received.
 ${warning}
 Order ID: ${orderId}
 Customer: ${order.customerName}
@@ -152,6 +176,6 @@ Items total: ₦${(order.itemsTotal ?? order.total).toLocaleString()}
 Delivery fee: ₦${(d?.fee ?? 0).toLocaleString()}
 TOTAL PAID: ₦${order.total.toLocaleString()}
 
-View in admin: ${SITE_URL}/admin/orders`,
-  });
+View in admin: ${SITE_URL}/admin/orders`
+  );
 }

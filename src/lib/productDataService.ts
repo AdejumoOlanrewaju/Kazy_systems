@@ -1,144 +1,62 @@
-import { db } from "@/lib/firebase";
-import { collection, addDoc, getDocs, updateDoc, deleteDoc, doc, onSnapshot, arrayRemove, getDoc, increment, runTransaction } from "firebase/firestore";
+import { db, auth } from "@/lib/firebase";
+import { collection, addDoc, updateDoc, deleteDoc, deleteField, doc, onSnapshot, arrayRemove } from "firebase/firestore";
 import { LaptopType } from "./types";
 import { getPublicIdFromUrl } from "@/lib/cloudinary";
 
-export const addProduct = async (data: LaptopType) => {
-    try {
-        // Never persist dbID as a stored field — it must only ever come from
-        // Firestore's real document id (doc.id), never from data inside the doc.
-        const { dbID, ...dataToSave } = data;
-        const docRef = await addDoc(collection(db, "products"), dataToSave);
-        console.log("Product added with ID:", docRef.id);
-    } catch (error) {
-        console.error("Error adding product:", error);
-    }
+// Write functions THROW on failure so the caller can tell the admin.
+
+export const addProduct = async (data: LaptopType): Promise<string> => {
+  // dbID must only ever come from Firestore's document id, never be stored inside the document.
+  const { dbID, ...dataToSave } = data;
+  const docRef = await addDoc(collection(db, "products"), dataToSave);
+  return docRef.id;
 };
 
-export const getProducts = (callback: (products: any[]) => void) => {
-    const unsubscribe = onSnapshot(collection(db, "products"), (snapshot) => {
-        const products = snapshot.docs.map((doc) => ({
-            ...doc.data(),
-            dbID: doc.id, // spread first, then override — the real id always wins
-        }));
-        callback(products);
-    });
-    return unsubscribe;
-};
+export const getProducts = (
+  callback: (products: any[]) => void,
+  onError?: (error: Error) => void
+) =>
+  onSnapshot(
+    collection(db, "products"),
+    (snapshot) => {
+      callback(snapshot.docs.map((d) => ({ ...d.data(), dbID: d.id })));
+    },
+    (error) => {
+      console.error("Products listener failed:", error);
+      onError?.(error);
+    }
+  );
 
 export const updateProduct = async (id: string, data: LaptopType) => {
-    try {
-        // rating/reviews belong to the reviews system — an edit must never overwrite them.
-        const { dbID, rating, reviews, ...dataToSave } = data;
-        const docRef = doc(db, 'products', id);
-        await updateDoc(docRef, dataToSave);
-    } catch (err) {
-        console.log(err)
-    }
+  // rating/reviews are maintained by the reviews system, so an edit must never overwrite them.
+  const { dbID, rating, reviews, ...dataToSave } = data;
+
+  // The admin form leaves these keys out when empty, and an update that merely
+  // omits a field does NOT remove it. Delete explicitly, or removed
+  // configurations/specs would linger on the product forever.
+  const payload: Record<string, unknown> = { ...dataToSave };
+  if (!("configurations" in payload)) payload.configurations = deleteField();
+  if (!("specSheet" in payload)) payload.specSheet = deleteField();
+
+  await updateDoc(doc(db, "products", id), payload);
 };
 
 export const deleteProduct = async (id: string) => {
-    const docRef = doc(db, "products", id);
-    await deleteDoc(docRef);
+  await deleteDoc(doc(db, "products", id));
 };
 
 export const deleteProductImage = async (productId: string, imageUrl: string) => {
-    try {
-        const publicId = getPublicIdFromUrl(imageUrl);
-        if (publicId) {
-            const { auth } = await import("@/lib/firebase");
-            const token = await auth.currentUser?.getIdToken();
-            if (!token) {
-                console.error("No authenticated user — cannot delete image");
-                return;
-            }
-            await fetch("/api/cloudinary/delete", {
-                method: "POST",
-                headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-                body: JSON.stringify({ publicId }),
-            });
-        }
-        const productRef = doc(db, "products", productId);
-        await updateDoc(productRef, {
-            images: arrayRemove(imageUrl),
-        });
-    } catch (error) {
-        console.error("Error deleting image:", error);
-    }
-};
+  const publicId = getPublicIdFromUrl(imageUrl);
+  if (publicId) {
+    const token = await auth.currentUser?.getIdToken();
+    if (!token) throw new Error("Not signed in");
 
-type StockCheckItem = { cartId: string; productId: string; configurationId?: string; quantity: number };
-
-export const checkProductsInStock = async (
-    items: StockCheckItem[]
-): Promise<{ allInStock: boolean; soldOutCartIds: string[] }> => {
-    const soldOutCartIds: string[] = [];
-
-    for (const item of items) {
-        const snap = await getDoc(doc(db, "products", item.productId));
-        if (!snap.exists()) {
-            soldOutCartIds.push(item.cartId);
-            continue;
-        }
-        const data = snap.data();
-
-        if (item.configurationId) {
-            const config = (data.configurations || []).find((c: any) => c.id === item.configurationId);
-            const available = config?.stockQuantity ?? 0;
-            if (available < item.quantity) soldOutCartIds.push(item.cartId);
-        } else {
-            const available = data.stockQuantity ?? 0;
-            if (available < item.quantity) soldOutCartIds.push(item.cartId);
-        }
-    }
-
-    return { allInStock: soldOutCartIds.length === 0, soldOutCartIds };
-};
-
-type DecrementItem = { productId: string; configurationId?: string; quantity: number };
-
-export const decrementStock = async (items: DecrementItem[]) => {
-    await Promise.all(
-        items.map(async (item) => {
-            if (item.configurationId) {
-                await runTransaction(db, async (transaction) => {
-                    const ref = doc(db, "products", item.productId);
-                    const snap = await transaction.get(ref);
-                    if (!snap.exists()) return;
-                    const data = snap.data();
-                    const configurations = (data.configurations || []).map((c: any) =>
-                        c.id === item.configurationId
-                            ? { ...c, stockQuantity: Math.max(0, c.stockQuantity - item.quantity) }
-                            : c
-                    );
-                    transaction.update(ref, { configurations });
-                });
-            } else {
-                await updateDoc(doc(db, "products", item.productId), {
-                    stockQuantity: increment(-item.quantity),
-                });
-            }
-        })
-    );
-};
-
-// Ends a deal immediately: the product returns to its regular price.
-// Discount and badge are kept so the deal is easy to re-run from the product form.
-export const endDeal = async (id: string) => {
-    await updateDoc(doc(db, "products", id), { isDeal: false, dealEndsAt: null });
-};
-
-// Flips any product whose deal has expired back to a normal (non-deal) product.
-// Called opportunistically whenever the product list loads — no server cron needed.
-export const expireOldDeals = async (products: LaptopType[]) => {
-    const now = Date.now();
-    const expired = products.filter(
-        (p) => p.isDeal && p.dealEndsAt && p.dealEndsAt <= now
-    );
-
-    await Promise.all(
-        expired.map((p) =>
-            updateDoc(doc(db, "products", p.dbID!), { isDeal: false, dealEndsAt: null })
-        )
-    );
+    const res = await fetch("/api/cloudinary/delete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ publicId }),
+    });
+    if (!res.ok) throw new Error("Could not delete the image file");
+  }
+  await updateDoc(doc(db, "products", productId), { images: arrayRemove(imageUrl) });
 };

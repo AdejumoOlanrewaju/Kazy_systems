@@ -15,6 +15,7 @@ import ProductDeal from '../components/ProductDeal'
 import LoadingProduct from '../components/LoadingProduct'
 import { useLaptopStore } from '@/store/laptopStore'
 import { useCountdown } from '@/lib/useCountdown'
+import { isDealLive } from '@/lib/productDisplay'
 
 const TIME_UNITS = [
     { key: 'days', label: 'days' },
@@ -52,7 +53,7 @@ const page = () => {
     // waiting for the database to be updated or for a refresh.
     const now = Date.now()
     const activeDeals = laptopStoreData
-        .filter((l) => l.isDeal && (!l.dealEndsAt || l.dealEndsAt > now))
+        .filter((l) => isDealLive(l) && (!l.dealEndsAt || l.dealEndsAt > now))
         .sort(
             (a, b) =>
                 (a.dealEndsAt ?? Number.MAX_SAFE_INTEGER) - (b.dealEndsAt ?? Number.MAX_SAFE_INTEGER)

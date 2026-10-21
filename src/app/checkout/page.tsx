@@ -13,6 +13,7 @@ import { toast } from "sonner"
 import { ArrowLeft, Lock, ShieldCheck, User, MapPin, Truck, Store } from "lucide-react"
 import { useCustomerAuth } from "@/lib/useCustomerAuth"
 import { getProfile, saveProfile } from "@/lib/profileService"
+import { clearPendingCheckout, confirmPayment, savePendingCheckout } from "@/lib/checkoutClient"
 declare global {
   interface Window {
     PaystackPop: any
@@ -60,6 +61,7 @@ const CheckoutPage = () => {
   const [state, setState] = useState("")
   const [processing, setProcessing] = useState(false)
   const paidRef = useRef(false) // Paystack fires onClose after a successful payment too
+  const settling = useRef(false)
 
   // Re-price the cart from live product data (deals may have started/ended).
   useEffect(() => {
@@ -117,24 +119,37 @@ const CheckoutPage = () => {
   const grandTotal = subtotal + deliveryFee
   const canPay = !processing && !settingsLoading && !!quote && quote.ok
 
-  const finishPayment = async (orderId: string, reference: string) => {
-    try {
-      const res = await fetch("/api/checkout/complete", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orderId, reference }),
-      })
-      if (!res.ok) throw new Error("not confirmed")
+  const completeOrder = (orderId: string) => {
+    clearPendingCheckout()
+    clearCart()
+    toast.success("Payment successful!")
+    router.push(`/orderConfirmation?orderId=${orderId}`)
+  }
 
-      clearCart()
-      toast.success("Payment successful!")
-      router.push(`/order-confirmation?orderId=${orderId}`)
-    } catch {
-      toast.error(
-        `We received your payment (ref: ${reference}) but couldn't confirm your order yet. Please don't pay again — contact us with this reference.`,
-        { duration: 15000 }
-      )
+  // Used both after a successful payment and when the popup closes: we never
+  // guess, we ask the server what really happened.
+  const settlePayment = async (orderId: string, reference: string) => {
+    if (settling.current) return
+    settling.current = true
+    try {
+      const outcome = await confirmPayment(orderId, reference)
+      if (outcome === "paid") {
+        completeOrder(orderId)
+        return
+      }
+
       setProcessing(false)
+      if (outcome === "unpaid") {
+        clearPendingCheckout()
+        toast.info("Payment cancelled. You haven't been charged.")
+      } else {
+        toast.warning(
+          `We're still confirming your payment (ref: ${reference}). If you were charged, your order will appear in My Orders or Track Order shortly. Please don't pay again.`,
+          { duration: 20000 }
+        )
+      }
+    } finally {
+      settling.current = false
     }
   }
 
@@ -202,6 +217,7 @@ const CheckoutPage = () => {
           ...(method === "delivery" ? { state, address: form.address } : {}),
         }).catch(() => { })
       }
+      savePendingCheckout(init.orderId, init.reference)
     } catch {
       toast.error("Network problem. Please try again.")
       setProcessing(false)
@@ -216,12 +232,12 @@ const CheckoutPage = () => {
       ref: init.reference,
       callback: (response: any) => {
         paidRef.current = true
-        finishPayment(init.orderId, response.reference)
+        settlePayment(init.orderId, response.reference)
       },
       onClose: () => {
         if (paidRef.current) return
-        setProcessing(false)
-        toast.info("Payment cancelled.")
+        toast.info("Checking your payment...")
+        settlePayment(init.orderId, init.reference)
       },
     })
     handler.openIframe()

@@ -9,7 +9,7 @@ import { categories, tags, dealBadges } from '@/lib/data';
 import { uploadToCloudinary } from '@/lib/cloudinary';
 import { useLaptopStore } from '@/store/laptopStore';
 import { useSidebarStore } from '@/store/sidebarStore';
-
+import { toast } from "sonner"
 
 const page = () => {
   const [laptops, setLaptops] = useState<LaptopType[]>([]);
@@ -18,6 +18,7 @@ const page = () => {
   const [showModal, setShowModal] = useState(false);
   const [editingLaptop, setEditingLaptop] = useState<LaptopType | null>(null);
   const [loading, setLoading] = useState<boolean>(true)
+  const [saving, setSaving] = useState(false)
   const [formData, setFormData] = useState<FormState>({
     name: "",
     category: "premium",
@@ -107,13 +108,15 @@ const page = () => {
     }));
   };
 
-  const deleteImageFunc = (productID: string, img: string, imgIndex: any) => {
-    setFormData(prev => ({
-      ...prev,
-      images: prev.images.filter((_, index) => index !== imgIndex),
-    }))
-    deleteProductImage(productID, img)
-  }
+  const deleteImageFunc = async (productID: string, img: string, imgIndex: number) => {
+    try {
+      await deleteProductImage(productID, img);
+      setFormData((prev) => ({ ...prev, images: prev.images.filter((_, i) => i !== imgIndex) }));
+    } catch (err) {
+      console.error(err);
+      toast.error("Couldn't delete that image. Please try again.");
+    }
+  };
 
 
   const filteredLaptops = useMemo(() => {
@@ -183,28 +186,36 @@ const page = () => {
   const handleSubmit = async () => {
     const hasConfigurations = formData.configurations.length > 0;
 
-    // if (!formData.name || !formData.rating || !formData.reviews || (!hasConfigurations && !formData.price)) {
-    //   alert("Please fill in all required fields");
-    //   return;
-    // }
-    if (!formData.name || (!hasConfigurations && !formData.price)) {
-      alert("Please fill in all required fields");
+    if (!formData.name.trim() || (!hasConfigurations && !formData.price)) {
+      toast.error("Please fill in the product name and price.");
       return;
     }
-
+    if (formData.images.length === 0) {
+      toast.error("Add at least one product image.");
+      return;
+    }
+    if (uploading) {
+      toast.error("Please wait for the images to finish uploading.");
+      return;
+    }
     if (formData.isDeal && !(discountPct > 0 && discountPct < 100)) {
-      alert("A deal needs a Discount % between 1 and 99 — that is what lowers the price while the deal is live.");
+      toast.error("A deal needs a Discount % between 1 and 99.");
+      return;
+    }
+    if (hasConfigurations && formData.configurations.some((c) => !(parseFloat(c.price) > 0))) {
+      toast.error("Every configuration needs a price.");
       return;
     }
 
     const baseData = {
       id: editingLaptop ? editingLaptop.id : '',
       dbID: editingLaptop ? editingLaptop.dbID : '',
-      name: formData.name,
+      name: formData.name.trim(),
       category: formData.category,
       price: formData.price ? parseFloat(formData.price) : 0,
       oldPrice: formData.oldPrice ? parseFloat(formData.oldPrice) : 0,
       images: formData.images,
+      // Ratings come only from real customer reviews, never typed by hand.
       rating: editingLaptop?.rating ?? 0,
       reviews: editingLaptop?.reviews ?? 0,
       stockQuantity: parseInt(formData.stockQuantity) || 0,
@@ -239,29 +250,26 @@ const page = () => {
         }
         : {}),
       ...(formData.specSheet.length > 0
-        ? { specSheet: formData.specSheet.filter(s => s.label.trim() && s.value.trim()) }
+        ? { specSheet: formData.specSheet.filter((s) => s.label.trim() && s.value.trim()) }
         : {}),
     };
 
-    if (editingLaptop) {
-      setLaptops((prev) =>
-        prev.map((l) => (l.id === editingLaptop.id ? laptopData : l))
-      );
-      try {
-        await updateProduct(editingLaptop.dbID!, laptopData)
-      } catch (err) {
-        console.log(err)
+    setSaving(true);
+    try {
+      if (editingLaptop) {
+        await updateProduct(editingLaptop.dbID, laptopData);
+        toast.success("Product updated");
+      } else {
+        await addProduct(laptopData);
+        toast.success("Product created");
       }
-    } else {
-      setLaptops((prev) => [...prev, laptopData]);
-      try {
-        await addProductFunc(laptopData)
-      } catch (err) {
-        console.log(err)
-      }
+      resetForm();
+    } catch (err) {
+      console.error(err);
+      toast.error("Couldn't save the product. Check your connection and try again. Your changes are still in the form.");
+    } finally {
+      setSaving(false);
     }
-
-    resetForm();
   };
 
   const resetForm = () => {
@@ -306,7 +314,7 @@ const page = () => {
       description: laptop.description || "",
       features: laptop.features?.join("\n") || "",
       warranty: laptop.warranty || "",
-      isDeal: laptop.isDeal || false,
+      isDeal: isDealLive(laptop) || false,
       dealEndsAt: laptop.dealEndsAt
         ? new Date(laptop.dealEndsAt).toISOString().slice(0, 16)
         : "",
@@ -330,10 +338,13 @@ const page = () => {
   };
 
   const handleDelete = async (id: string) => {
+    if (!window.confirm("Delete this product permanently?")) return;
     try {
-      await deleteProduct(id)
+      await deleteProduct(id);
+      toast.success("Product deleted");
     } catch (err) {
-      console.log(err)
+      console.error(err);
+      toast.error("Couldn't delete the product.");
     }
   };
 
@@ -1028,9 +1039,10 @@ const page = () => {
               </button>
               <button
                 onClick={handleSubmit}
-                className="flex-1 px-6 py-3 bg-amber-500 text-neutral-950 rounded-xl hover:bg-amber-600 transition-colors font-semibold shadow-lg"
+                disabled={saving || uploading}
+                className="flex-1 px-6 py-3 bg-amber-500 text-neutral-950 rounded-xl hover:bg-amber-600 transition-colors font-semibold shadow-lg disabled:opacity-60"
               >
-                {editingLaptop ? 'Update Product' : 'Create Product'}
+                {saving ? "Saving..." : editingLaptop ? 'Update Product' : 'Create Product'}
               </button>
             </div>
           </div>

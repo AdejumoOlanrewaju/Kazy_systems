@@ -19,13 +19,14 @@ import { getOrders, Order, OrderStatus } from "@/lib/orderService";
 import { getLeads, Lead } from "@/lib/leadService";
 import { getProductStock, getInventoryValue, getConfigurationLabel } from "@/lib/productDisplay";
 
-const STATUS_ORDER: OrderStatus[] = ["pending", "paid", "shipped", "delivered", "failed"];
+const STATUS_ORDER: OrderStatus[] = ["pending", "paid", "shipped", "delivered", "failed", "refunded"];
 const STATUS_BAR_COLOR: Record<OrderStatus, string> = {
     pending: "bg-amber-400",
     paid: "bg-emerald-500",
     shipped: "bg-blue-500",
     delivered: "bg-purple-500",
     failed: "bg-red-500",
+    refunded: "bg-gray-400"
 };
 const REVENUE_STATUSES: OrderStatus[] = ["paid", "shipped", "delivered"];
 
@@ -110,7 +111,7 @@ export default function KazyAdminDashboard() {
     );
 
     const totalRevenue = useMemo(
-        () => orders.filter((o) => REVENUE_STATUSES.includes(o.status)).reduce((sum, o) => sum + o.total, 0),
+        () => orders.filter((o) => REVENUE_STATUSES.includes(o.status)).reduce((sum, o) => sum + (o.total - (o.refundedTotal ?? 0)), 0),
         [orders]
     );
     const pendingOrdersCount = useMemo(() => orders.filter((o) => o.status === "pending").length, [orders]);
@@ -139,7 +140,7 @@ export default function KazyAdminDashboard() {
                     const created = tsToDate(o.createdAt as any);
                     return created && created >= d && created < nextDay;
                 })
-                .reduce((sum, o) => sum + o.total, 0);
+                .reduce((sum, o) => sum + (o.total - (o.refundedTotal ?? 0)), 0);
 
             days.push({ label: d.toLocaleDateString("en-NG", { weekday: "short" }), total });
         }

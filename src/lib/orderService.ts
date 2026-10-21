@@ -1,25 +1,21 @@
-import { addDoc, collection, serverTimestamp, onSnapshot, orderBy, query, doc, updateDoc } from "firebase/firestore";
+import { collection, doc, onSnapshot, orderBy, query, updateDoc, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { CartItem } from "@/store/cartStore";
-import { where } from "firebase/firestore";
 
-export type OrderStatus = "pending" | "paid" | "failed" | "shipped" | "delivered";
+// Orders are created and paid ONLY by the server (/api/checkout/*). The browser
+// can read orders (admin: all, customer: their own) and the admin can update
+// status and shipping. Nothing else belongs here.
 
-export type Order = {
+export type OrderStatus = "pending" | "paid" | "failed" | "shipped" | "delivered" | "refunded";
+
+export type OrderItem = {
   id: string;
-  items: CartItem[];
-  total: number;
-  customerName: string;
-  email: string;
-  phone: string;
-  address: string;
-  status: OrderStatus;
-  paystackRef?: string;
-  createdAt?: { seconds: number };
-  itemsTotal?: number;
-  delivery?: OrderDelivery;
-  shipping?: OrderShipping;
-  stockShortage?: string[];
+  productId?: string;
+  configurationId?: string;
+  configurationLabel?: string;
+  name: string;
+  price: number;
+  image?: string;
+  quantity: number;
 };
 
 export type OrderDelivery = {
@@ -38,58 +34,31 @@ export type OrderShipping = {
   expectedDate?: string; // "YYYY-MM-DD"
 };
 
+export type OrderRefund = { amount: number; reason: string; at: number; status: string };
 
-export const createOrder = async (data: {
-  items: CartItem[];
+export type Order = {
+  id: string;
+  items: OrderItem[];
   total: number;
+  itemsTotal?: number;
+  delivery?: OrderDelivery;
+  shipping?: OrderShipping;
   customerName: string;
   email: string;
   phone: string;
   address: string;
-}) => {
-  const docRef = await addDoc(collection(db, "orders"), {
-    ...data,
-    status: "pending" as OrderStatus,
-    createdAt: serverTimestamp(),
-  });
-  return docRef.id;
+  status: OrderStatus;
+  paystackRef?: string;
+  userId?: string;
+  stockShortage?: string[];
+  refundedTotal?: number;
+  refunds?: OrderRefund[];
+  createdAt?: { seconds: number };
 };
 
-export const markOrderPaid = async (orderId: string, paystackRef: string) => {
-  await updateDoc(doc(db, "orders", orderId), {
-    status: "paid",
-    paystackRef,
-  });
-};
-
-export const markOrderFailed = async (orderId: string) => {
-  await updateDoc(doc(db, "orders", orderId), { status: "failed" });
-};
-
-// For admin use — moving a paid order through shipped/delivered.
+// Admin only (Firestore rules).
 export const updateOrderStatus = async (orderId: string, status: OrderStatus) => {
   await updateDoc(doc(db, "orders", orderId), { status });
-};
-
-export const getOrders = (callback: (orders: Order[]) => void) => {
-  const q = query(collection(db, "orders"), orderBy("createdAt", "desc"));
-  return onSnapshot(q, (snapshot) => {
-    const orders = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as Order));
-    callback(orders);
-  });
-};
-
-// Live-subscribes to orders belonging to one customer email — used by "My Orders".
-export const getOrdersByEmail = (email: string, callback: (orders: Order[]) => void) => {
-  const q = query(
-    collection(db, "orders"),
-    where("email", "==", email),
-    orderBy("createdAt", "desc")
-  );
-  return onSnapshot(q, (snapshot) => {
-    const orders = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as Order));
-    callback(orders);
-  });
 };
 
 export const updateOrderShipping = async (
@@ -97,4 +66,19 @@ export const updateOrderShipping = async (
   shipping: { courier: string; trackingNumber: string; expectedDate: string }
 ) => {
   await updateDoc(doc(db, "orders", orderId), { shipping });
+};
+
+export const getOrders = (callback: (orders: Order[]) => void) => {
+  const q = query(collection(db, "orders"), orderBy("createdAt", "desc"));
+  return onSnapshot(q, (snapshot) => {
+    callback(snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as Order)));
+  });
+};
+
+// A customer's own orders (My Orders).
+export const getOrdersByEmail = (email: string, callback: (orders: Order[]) => void) => {
+  const q = query(collection(db, "orders"), where("email", "==", email), orderBy("createdAt", "desc"));
+  return onSnapshot(q, (snapshot) => {
+    callback(snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as Order)));
+  });
 };

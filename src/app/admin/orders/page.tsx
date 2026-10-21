@@ -12,6 +12,7 @@ const STATUS_COLORS: Record<OrderStatus, string> = {
   failed: "bg-red-100 text-red-700",
   shipped: "bg-blue-100 text-blue-700",
   delivered: "bg-purple-100 text-purple-700",
+  refunded: "bg-gray-200 text-gray-700"
 }
 
 // 0803 123 4567 / +234 803 123 4567 -> 2348031234567 (what wa.me expects)
@@ -49,7 +50,7 @@ const ShippingPanel = ({ order }: { order: Order }) => {
     if (order.status === "delivered") {
       const firstItem = order.items[0]
       const link = firstItem
-        ? `${window.location.origin}${buildProductUrl(firstItem.name, firstItem.productId)}#reviews`
+        ? `${window.location.origin}${buildProductUrl(firstItem.name, firstItem.productId as string)}#reviews`
         : window.location.origin
       return `Hi ${order.customerName.split(" ")[0]}, thank you for shopping with Kayzee Global! We hope you're enjoying your order. If you have a minute, a quick review helps other buyers: ${link}`
     }
@@ -157,7 +158,7 @@ export default function OrdersPage() {
       <h1 className="text-2xl font-bold text-black mb-6">Orders</h1>
 
       <div className="flex gap-2 mb-6 flex-wrap">
-        {(["all", "pending", "paid", "shipped", "delivered", "failed"] as const).map((f) => (
+        {(["all", "pending", "paid", "shipped", "delivered", "failed", "refunded"] as const).map((f) => (
           <button
             key={f}
             onClick={() => setFilter(f)}

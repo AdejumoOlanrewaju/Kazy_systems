@@ -1,21 +1,53 @@
 import { NextRequest, NextResponse } from "next/server";
-import { Resend } from "resend";
+import { clientKey, hashKey, rateLimit, tooMany } from "@/lib/server/rateLimit";
+import { customerEmailEnabled, sendAdminEmail, sendCustomerEmail } from "@/lib/server/mailer";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+// Must match the options on the repair form.
+const ISSUES = [
+  "Screen Replacement",
+  "Performance Upgrade",
+  "Virus Removal",
+  "Hardware Repair",
+  "Battery Replacement",
+  "Keyboard Repair",
+  "Other",
+];
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
-// Same admin address used for order notifications — keep them in sync if this ever changes.
-const ADMIN_EMAIL = "olanrewajuadejumo56@gmail.com";
+// Single-line, trimmed, capped. Strips the characters used for header injection.
+const oneLine = (value: unknown, max: number) =>
+  String(value ?? "").replace(/[\r\n\t]+/g, " ").trim().slice(0, max);
+
+const fail = (error: string, status = 400) => NextResponse.json({ error }, { status });
 
 export async function POST(req: NextRequest) {
   try {
-    const { name, email, phone, laptopBrand, issue, description } = await req.json();
+    const body = await req.json().catch(() => null);
+    if (!body) return fail("Invalid request.");
 
-    // 1. Notify the admin — this is the important one, mirrors the WhatsApp flow's purpose.
-    await resend.emails.send({
-      from: "Kayzee Repairs <onboarding@resend.dev>",
-      to: ADMIN_EMAIL,
-      subject: `New Repair Request — ${name}`,
-      text: `New repair request submitted via email.
+    const name = oneLine(body.name, 80);
+    const email = oneLine(body.email, 120).toLowerCase();
+    const phone = oneLine(body.phone, 30);
+    const laptopBrand = oneLine(body.laptopBrand, 80);
+    const issue = oneLine(body.issue, 40);
+    const description = String(body.description ?? "").trim().slice(0, 1500);
+
+    if (!name) return fail("Please enter your name.");
+    if (!EMAIL_RE.test(email)) return fail("Please enter a valid email address.");
+    if (phone.replace(/\D/g, "").length < 7) return fail("Please enter a valid phone number.");
+    if (!ISSUES.includes(issue)) return fail("Please choose an issue type.");
+    if (description.length < 10) return fail("Please describe the problem in a few words.");
+
+    // Limits keep this from being used to spam you or anyone else.
+    const byIp = await rateLimit("repair-ip", clientKey(req), 5, 3600);
+    if (!byIp.ok) return tooMany(byIp.retryAfter);
+    const byEmail = await rateLimit("repair-email", hashKey(email), 3, 3600);
+    if (!byEmail.ok) return tooMany(byEmail.retryAfter);
+
+    // The admin email is what matters: if this fails, tell the customer.
+    await sendAdminEmail(
+      `Repair request — ${name}`,
+      `New repair request submitted via email.
 
 Name: ${name}
 Email: ${email}
@@ -24,28 +56,33 @@ Laptop Brand/Model: ${laptopBrand || "Not specified"}
 Issue Type: ${issue}
 
 Description:
-${description}`,
-    });
+${description}`
+    );
 
-    // 2. Confirm receipt to the customer — sets expectations, gives them something to point to.
-    await resend.emails.send({
-      from: "Kayzee Global Computer Networks <onboarding@resend.dev>",
-      to: email,
-      subject: "We've received your repair request",
-      text: `Hi ${name},
+    // A confirmation to the customer is a bonus: fixed text, and only once a
+    // verified domain exists. A failure here never fails the request.
+    let customerEmailed = false;
+    if (customerEmailEnabled()) {
+      try {
+        customerEmailed = await sendCustomerEmail(
+          email,
+          "We've received your repair request",
+          `Hi ${name},
 
-Thanks for reaching out — we've received your repair request for your ${laptopBrand || "laptop"} (${issue}).
+Thanks for reaching out. We've received your repair request (${issue}) and our team will get back to you shortly on ${phone}.
 
-Our team will review the details and get back to you shortly at ${phone} or this email address.
+If it's urgent, you can also reach us on WhatsApp.
 
-If it's urgent, you can also reach us directly on WhatsApp.
+Kayzee Global Computer Networks`
+        );
+      } catch (error) {
+        console.error("Repair confirmation email failed:", error);
+      }
+    }
 
-— Kayzee Global Computer Networks`,
-    });
-
-    return NextResponse.json({ sent: true });
+    return NextResponse.json({ sent: true, customerEmailed });
   } catch (error) {
     console.error("Repair email notification failed:", error);
-    return NextResponse.json({ sent: false }, { status: 500 });
+    return fail("We couldn't send your request. Please try WhatsApp instead.", 500);
   }
 }
