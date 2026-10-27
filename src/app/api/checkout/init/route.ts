@@ -5,7 +5,7 @@ import { getEffectivePrice, getConfigurationLabel } from "@/lib/productDisplay";
 import { computeDelivery } from "@/lib/delivery";
 import { loadDeliverySettings } from "@/lib/server/delivery";
 import { adminAuth } from "@/lib/firebaseAdmin";
-import { clientKey, rateLimit, tooMany } from "@/lib/server/rateLimit";
+import { clientKey, hashKey, rateLimit, tooMany } from "@/lib/server/rateLimit";
 type InItem = { productId: string; configurationId?: string; quantity: number };
 
 const fail = (error: string, status = 400, code?: string) =>
@@ -13,14 +13,6 @@ const fail = (error: string, status = 400, code?: string) =>
 
 export async function POST(req: NextRequest) {
   try {
-    const limited = await rateLimit("checkout-init", clientKey(req), 10, 600);
-    if (!limited.ok) {
-      return tooMany(limited.retryAfter, "Too many checkout attempts. Please wait a few minutes and try again.");
-    }
-    const { items, customer, delivery, expectedTotal } = await req.json();
-    if (typeof expectedTotal !== "number" || !Number.isFinite(expectedTotal)) {
-      return fail("We couldn't confirm your order total. Please refresh the page and try again.");
-    }
     // A signed-in customer's order is tied to their account, and their email comes
     // from the verified token, never from the form.
     let userId: string | null = null;
@@ -34,6 +26,21 @@ export async function POST(req: NextRequest) {
       } catch {
         // expired or invalid token: carry on as a guest
       }
+    }
+
+    // Signed-in customers are limited per account, so many people sharing one
+    // mobile-carrier IP don't lock each other out. Guests fall back to IP, with
+    // a higher cap because that IP is often shared.
+    const limited = userId
+      ? await rateLimit("checkout-init-user", hashKey(userId), 10, 600)
+      : await rateLimit("checkout-init", clientKey(req), 30, 600);
+    if (!limited.ok) {
+      return tooMany(limited.retryAfter, "Too many checkout attempts. Please wait a few minutes and try again.");
+    }
+
+    const { items, customer, delivery, expectedTotal } = await req.json();
+    if (typeof expectedTotal !== "number" || !Number.isFinite(expectedTotal)) {
+      return fail("We couldn't confirm your order total. Please refresh the page and try again.");
     }
     // ---- validate input shape ----
     if (!Array.isArray(items) || items.length === 0 || items.length > 20) return fail("Your cart is empty.");
