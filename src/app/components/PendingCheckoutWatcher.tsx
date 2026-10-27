@@ -21,7 +21,7 @@ const PendingCheckoutWatcher = () => {
         clearPendingCheckout()
         useCartStore.getState().clearCart()
         toast.success("Your payment went through — here's your order.")
-        router.push(`/orderConfirmation?orderId=${pending.orderId}`)
+        router.push(`/order-confirmation?orderId=${pending.orderId}`)
       } else if (outcome === "unpaid") {
         clearPendingCheckout() // they never paid
       }

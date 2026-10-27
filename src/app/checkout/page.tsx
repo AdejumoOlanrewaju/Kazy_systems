@@ -123,7 +123,7 @@ const CheckoutPage = () => {
     clearPendingCheckout()
     clearCart()
     toast.success("Payment successful!")
-    router.push(`/orderConfirmation?orderId=${orderId}`)
+    router.push(`/order-confirmation?orderId=${orderId}`)
   }
 
   // Used both after a successful payment and when the popup closes: we never

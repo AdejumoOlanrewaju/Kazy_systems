@@ -36,7 +36,7 @@ export const getInventoryValue = (p: Stockable & { price?: number }): number =>
 // Checked against the clock, so the price returns to normal at the exact
 // moment the deal ends, even before the database flag is flipped.
 export const isDealLive = (p: DealFields, now: number = Date.now()): boolean =>
-  !!isDealLive(p) && (!p.dealEndsAt || p.dealEndsAt > now);
+  !!p.isDeal && (!p.dealEndsAt || p.dealEndsAt > now);
 
 type PriceResult = { price: number; oldPrice?: number };
 
